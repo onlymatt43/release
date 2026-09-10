@@ -49,7 +49,7 @@ export function siteLocale(): string | null {
 }
 
 // IANA time zone (e.g. America/Toronto) used to format dates shown on
-// consent documents. Null when unset, so formatting falls back to the
+// agreements. Null when unset, so formatting falls back to the
 // runtime's own time zone instead of assuming one.
 export function siteTimeZone(): string | null {
   return env('SITE_TIMEZONE');
@@ -78,10 +78,9 @@ export function siteContactEmail(): string | null {
 }
 
 // Public base URL for this deployment (scheme + host, no trailing slash),
-// used to build absolute links such as a consent-form QR code. Prefers the
-// configured SITE_URL; otherwise derives it from the incoming request's own
-// host, so it works on any domain (preview, production, custom) with no
-// per-deployment configuration at all.
+// used to build absolute links. Prefers the configured SITE_URL; otherwise
+// derives it from the incoming request's own host, so it works on any domain
+// (preview, production, custom) with no per-deployment configuration at all.
 export async function resolveBaseUrl(): Promise<string> {
   const configured = siteUrl();
   if (configured) return configured.toString().replace(/\/$/, '');
@@ -91,32 +90,6 @@ export async function resolveBaseUrl(): Promise<string> {
   if (!host) return '';
   const proto = h.get('x-forwarded-proto') ?? 'https';
   return `${proto}://${host}`;
-}
-
-// ── External integrations (all optional) ──────────────────────────────────
-
-// Base URL of a webhook notified (HTTP PUT, JSON body) when a consent form is
-// signed, with the shoot id appended as the last path segment. Null when
-// unset, in which case no external notification is sent.
-export function consentWebhookBaseUrl(): string | null {
-  const raw = env('CONSENT_WEBHOOK_URL');
-  if (!raw) return null;
-  try {
-    return new URL(raw).toString().replace(/\/$/, '');
-  } catch {
-    return null;
-  }
-}
-
-// Names of the content platforms mentioned in the consent form's legal text
-// and publication-consent checkbox (e.g. "OnlyFans, Fansly"). Null when
-// unset, in which case that text describes platforms generically instead of
-// naming any by name.
-export function sitePlatformExamples(): string[] | null {
-  const raw = env('SITE_PLATFORM_EXAMPLES');
-  if (!raw) return null;
-  const names = raw.split(',').map((s) => s.trim()).filter(Boolean);
-  return names.length ? names : null;
 }
 
 // Metadata `icons` entry for the brand favicon set, or an empty object when the
