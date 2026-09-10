@@ -1,6 +1,7 @@
 // Identity provider reached over HTTP: the provider signs a short-lived entry
-// token (HS256 JWT) when it sends a visitor to release, and exposes a profile
-// endpoint release calls server-to-server with a shared bearer secret.
+// token (HS256 JWT, "exp" required) when it sends a visitor to release, and
+// exposes a profile endpoint release calls server-to-server with a shared
+// bearer secret.
 //
 // Configuration (all read at call time):
 //   IDENTITY_PROVIDER_NAME   label shown on the sign-in prompt
@@ -118,6 +119,9 @@ export const httpJwtProvider: IdentityProvider = {
     try {
       const { payload } = await jwtVerify(token, secret, {
         algorithms: ["HS256"],
+        // A token without "exp" would be valid forever; entry tokens travel
+        // through URLs and forms and must die on their own.
+        requiredClaims: ["exp"],
         ...(issuer ? { issuer } : {}),
         ...(audience ? { audience } : {}),
       });

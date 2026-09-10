@@ -129,18 +129,29 @@ par défaut.
    se connecte, coche les consentements, accepte. Son profil est récupéré et
    figé. Quand tous les handles invités ont accepté : `sealed`.
 3. Chaque partie télécharge `/api/app/agreements/{id}/pdf`.
-4. Dès que toutes les parties ont téléchargé, l'accord est **supprimé**,
-   immédiatement ou à la fin de la fenêtre `AGREEMENT_DELIVERY_GRACE_MINUTES`
-   si elle est configurée (pour permettre de reprendre un téléchargement
-   interrompu). Sinon, tout accord dont `expires_at` est passé
+4. Dès que toutes les parties ont téléchargé, l'accord est **supprimé** à
+   la fin de la fenêtre `AGREEMENT_DELIVERY_GRACE_MINUTES` (15 minutes par
+   défaut, pour permettre de reprendre un téléchargement interrompu ; `0`
+   supprime immédiatement). Sinon, tout accord dont `expires_at` est passé
    (`AGREEMENT_TTL_DAYS`, 7 par défaut) est supprimé au premier accès, et
    au plus tard par le cron quotidien `/api/cron/purge` (`vercel.json`).
 
 Un compte ne peut avoir que `AGREEMENT_MAX_IN_TRANSIT` demandes en cours
-à la fois (10 par défaut).
+à la fois (10 par défaut), et une demande ne peut inviter plus de 10 handles.
 
 Aucune notification n'est envoyée par `release`.
 
 ## 5. Variables d'environnement
 
 Voir `.env.example`, section « Transport flow ».
+
+## 6. Base de données
+
+Le schéma complet est dans `db/schema.sql` (à appliquer sur une base
+neuve). Une base créée avant que les invitations soient liées à un
+identifiant de compte (colonne `invited_handles`) doit passer par
+`db/migrations/2026-09-10-agreement-seats.sql` une seule fois :
+
+```
+turso db shell <nom-de-la-base> < db/migrations/2026-09-10-agreement-seats.sql
+```

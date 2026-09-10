@@ -28,8 +28,21 @@ export function checkConsents(contract: Contract, raw: unknown): { ok: true; key
   return missing ? { ok: false, missing: missing.key } : { ok: true, keys };
 }
 
-/** Only same-site paths are accepted as a post-sign-in destination. */
+const SAME_SITE_BASE = "https://release.invalid";
+
+/**
+ * Only same-site paths are accepted as a post-sign-in destination. The
+ * value is resolved the way the browser will resolve it, since the URL
+ * parser strips tabs and newlines first (so "/\t/host" is "//host") and
+ * treats a backslash as a slash.
+ */
 export function safeReturnPath(raw: string | null | undefined, fallback = "/app"): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return fallback;
+  if (!raw || !raw.startsWith("/") || /[\s\p{C}]/u.test(raw)) return fallback;
+  try {
+    const url = new URL(raw, SAME_SITE_BASE);
+    if (url.origin !== SAME_SITE_BASE || !url.pathname.startsWith("/")) return fallback;
+  } catch {
+    return fallback;
+  }
   return raw;
 }

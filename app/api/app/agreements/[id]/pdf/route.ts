@@ -27,6 +27,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Could not render the document" }, { status: 500 });
   }
 
+  // Handles are provider-defined; only header-safe characters go in the filename.
+  const handles = agreement.parties.map((p) => p.subject.handle.replace(/[^A-Za-z0-9_.-]/g, "_")).join("-");
+  const res = new NextResponse(new Uint8Array(pdf), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="${agreement.id.slice(0, 8)}-${handles}.pdf"`,
+      "Cache-Control": "no-store",
+    },
+  });
+
+  // Registered last: the download counts only once a response is
+  // actually on its way.
   after(async () => {
     try {
       await markDownloaded(agreement.id, session.id);
@@ -36,13 +49,5 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     }
   });
 
-  const handles = agreement.parties.map((p) => p.subject.handle).join("-");
-  return new NextResponse(new Uint8Array(pdf), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${agreement.id.slice(0, 8)}-${handles}.pdf"`,
-      "Cache-Control": "no-store",
-    },
-  });
+  return res;
 }

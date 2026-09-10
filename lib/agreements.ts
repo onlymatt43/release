@@ -56,11 +56,13 @@ export function maxInTransitPerRequester(): number {
 
 /**
  * Minutes a fully delivered agreement lingers before deletion, so a party
- * whose download broke off can retry (default 0: deleted at once).
+ * whose download broke off can retry (default 15). The download is recorded
+ * when the response is handed off, not when the bytes reach the browser, so
+ * 0 (delete at once) is only safe when every party is on a reliable link.
  */
 export function deliveryGraceMinutes(): number {
   const n = Number.parseFloat(process.env.AGREEMENT_DELIVERY_GRACE_MINUTES ?? "");
-  return Number.isFinite(n) && n >= 0 ? n : 0;
+  return Number.isFinite(n) && n >= 0 ? n : 15;
 }
 
 function newId(): string {
@@ -71,6 +73,13 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+/** Seats as stored; a bare handle (rows written before seats carried ids) binds to the handle alone. */
+function parseInvited(json: string): Invitee[] {
+  return (JSON.parse(json) as unknown[]).map((v) =>
+    typeof v === "string" ? { handle: v, id: null } : { handle: (v as Invitee).handle, id: (v as Invitee).id ?? null }
+  );
+}
+
 function rowToAgreement(row: Record<string, unknown>, partyRows: Record<string, unknown>[]): Agreement {
   return {
     id: row.id as string,
@@ -78,7 +87,7 @@ function rowToAgreement(row: Record<string, unknown>, partyRows: Record<string, 
     title: (row.title as string | null) ?? null,
     status: row.status as AgreementStatus,
     requesterId: row.requester_id as string,
-    invited: JSON.parse(row.invited_json as string) as Invitee[],
+    invited: parseInvited(row.invited_json as string),
     parties: partyRows.map((p) => ({
       subject: JSON.parse(p.subject_json as string) as Identity,
       profile: JSON.parse(p.profile_json as string) as Profile,
@@ -146,9 +155,10 @@ export interface PartyInput {
   userAgent: string | null;
 }
 
+/** Record a party. A second acceptance by the same account keeps the first one. */
 async function insertParty(agreementId: string, party: PartyInput, acceptedAt: string): Promise<void> {
   await getDb().execute({
-    sql: `INSERT INTO agreement_parties
+    sql: `INSERT OR IGNORE INTO agreement_parties
             (agreement_id, subject_id, handle, subject_json, profile_json, consents_json,
              accepted_at, ip_address, user_agent)
           VALUES (:agreementId, :subjectId, :handle, :subjectJson, :profileJson, :consentsJson,
@@ -211,7 +221,7 @@ export async function createAgreement(input: {
 
 /** Whether an invitation seat belongs to this subject. */
 export function seatMatches(invitee: Invitee, subject: Identity): boolean {
-  return invitee.id !== null ? invitee.id === subject.id : invitee.handle === subject.handle;
+  return invitee.id != null ? invitee.id === subject.id : invitee.handle === subject.handle;
 }
 
 /** The party who has taken this seat, if any. */
@@ -219,12 +229,16 @@ export function seatTakenBy(agreement: Agreement, invitee: Invitee): Party | nul
   return agreement.parties.find((p) => seatMatches(invitee, p.subject)) ?? null;
 }
 
-/** Whether this subject is expected to join and has not joined yet. */
+/**
+ * Whether this subject is expected to join and has not joined yet: there is
+ * a seat for them that nobody has taken. A seat bound to a handle alone is
+ * closed by whoever took it first, even to another account with that handle.
+ */
 export function pendingFor(agreement: Agreement, subject: Identity): boolean {
   return (
     agreement.status === "pending" &&
-    agreement.invited.some((i) => seatMatches(i, subject)) &&
-    !agreement.parties.some((p) => p.subject.id === subject.id)
+    partyOf(agreement, subject) === null &&
+    agreement.invited.some((i) => seatMatches(i, subject) && !seatTakenBy(agreement, i))
   );
 }
 
@@ -232,24 +246,29 @@ export function partyOf(agreement: Agreement, subject: Identity): Party | null {
   return agreement.parties.find((p) => p.subject.id === subject.id) ?? null;
 }
 
-/** A subject joins; the agreement seals once every invited handle has joined. */
+/**
+ * A subject joins; the agreement seals once every seat is taken.
+ *
+ * Completeness is decided from what the database holds after the insert,
+ * never from the caller's snapshot: two invitees accepting at the same
+ * moment each see the other's row, so the last one in seals. The UPDATE is
+ * conditional so that sealing happens exactly once.
+ */
 export async function acceptAgreement(agreement: Agreement, party: PartyInput): Promise<Agreement> {
   if (!pendingFor(agreement, party.subject)) throw new Error("This account is not expected to join");
-  const now = nowIso();
-  await insertParty(agreement.id, party, now);
+  await insertParty(agreement.id, party, nowIso());
 
-  const joined = [...agreement.parties.map((p) => p.subject), party.subject];
-  const complete = agreement.invited.every((i) => joined.some((s) => seatMatches(i, s)));
-  if (complete) {
-    await getDb().execute({
-      sql: "UPDATE agreements SET status = 'sealed', sealed_at = ? WHERE id = ?",
-      args: [now, agreement.id],
-    });
-  }
+  const joined = await getAgreement(agreement.id);
+  if (!joined) throw new Error("Agreement vanished after acceptance");
+  if (joined.status !== "pending" || !joined.invited.every((i) => seatTakenBy(joined, i))) return joined;
 
-  const updated = await getAgreement(agreement.id);
-  if (!updated) throw new Error("Agreement vanished after acceptance");
-  return updated;
+  const sealedAt = nowIso();
+  const res = await getDb().execute({
+    sql: "UPDATE agreements SET status = 'sealed', sealed_at = ? WHERE id = ? AND status = 'pending'",
+    args: [sealedAt, joined.id],
+  });
+  if (res.rowsAffected > 0) return { ...joined, status: "sealed", sealedAt };
+  return (await getAgreement(joined.id)) ?? joined;
 }
 
 export async function markDownloaded(agreementId: string, subjectId: string): Promise<void> {
@@ -270,9 +289,9 @@ export async function everyoneDownloaded(agreementId: string): Promise<boolean> 
 }
 
 /**
- * Everyone has their copy: delete now, or, when a grace window is
- * configured, move the deadline to the end of that window so a broken
- * download can be retried. Never pushes an existing deadline later.
+ * Everyone has their copy: move the deadline to the end of the grace window
+ * so a broken download can be retried, or delete now when the window is
+ * configured to 0. Never pushes an existing deadline later.
  */
 export async function finishDelivery(agreementId: string): Promise<void> {
   const grace = deliveryGraceMinutes();

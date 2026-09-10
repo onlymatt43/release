@@ -7,6 +7,11 @@ import { loadContract, ContractError } from "@/lib/contract";
 import { createAgreement, countInTransitRequestedBy, maxInTransitPerRequester, type Invitee } from "@/lib/agreements";
 import { requireSession, clientInfo, checkConsents } from "@/lib/app-request";
 
+/** Most handles one request may invite; each one costs a provider lookup. */
+const MAX_INVITEES = 10;
+/** Handles are the provider's business; only length and printable characters are checked here. */
+const HANDLE_PATTERN = /^[^\s\p{C}]{1,64}$/u;
+
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (session instanceof NextResponse) return session;
@@ -20,6 +25,11 @@ export async function POST(req: NextRequest) {
     rawHandles.filter((h): h is string => typeof h === "string").map(normalizeHandle).filter(Boolean)
   ));
   if (!handles.length) return NextResponse.json({ error: "At least one handle is required" }, { status: 422 });
+  if (handles.length > MAX_INVITEES) {
+    return NextResponse.json({ error: `At most ${MAX_INVITEES} handles per agreement` }, { status: 422 });
+  }
+  const invalid = handles.find((h) => !HANDLE_PATTERN.test(h));
+  if (invalid !== undefined) return NextResponse.json({ error: "Invalid handle" }, { status: 422 });
   if (handles.includes(session.handle)) return NextResponse.json({ error: "You cannot invite yourself" }, { status: 422 });
 
   const title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : null;
@@ -38,16 +48,26 @@ export async function POST(req: NextRequest) {
 
     // Bind each seat to the account behind the handle when the provider can
     // tell us; a handle that later changes hands then no longer opens it.
-    const invited: Invitee[] = [];
-    for (const handle of handles) {
-      const resolved = await provider.resolveHandle(handle);
-      if (resolved && resolved.id === session.id) {
-        return NextResponse.json({ error: "You cannot invite yourself" }, { status: 422 });
-      }
-      invited.push({ handle: resolved?.handle ?? handle, id: resolved?.id ?? null });
+    const [profile, ...resolved] = await Promise.all([
+      provider.getProfile(session),
+      ...handles.map((h) => provider.resolveHandle(h)),
+    ]);
+    if (resolved.some((r) => r?.id === session.id)) {
+      return NextResponse.json({ error: "You cannot invite yourself" }, { status: 422 });
     }
 
-    const profile = await provider.getProfile(session);
+    // Two handles may name one account (aliases, old names): one seat each,
+    // or a single acceptance would fill both.
+    const invited: Invitee[] = [];
+    const seen = new Set<string>();
+    resolved.forEach((r, i) => {
+      const seat: Invitee = { handle: r?.handle ?? handles[i], id: r?.id ?? null };
+      const key = seat.id !== null ? `id:${seat.id}` : `handle:${seat.handle}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      invited.push(seat);
+    });
+
     const agreement = await createAgreement({
       contract,
       title,
