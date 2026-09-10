@@ -44,6 +44,13 @@ export interface IdentityProvider {
   verifyEntryToken(token: string): Promise<Identity>;
   /** Fetch the subject's complete, already-filled profile. */
   getProfile(subject: Identity): Promise<Profile>;
+  /**
+   * Resolve a handle to the stable identity behind it, so an invitation binds
+   * to the account rather than to a name that can change hands. Null when
+   * the provider offers no such lookup; the invitation then binds to the
+   * handle alone.
+   */
+  resolveHandle(handle: string): Promise<Identity | null>;
 }
 
 export class IdentityError extends Error {

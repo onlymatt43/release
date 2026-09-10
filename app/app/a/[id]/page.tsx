@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getIdentityProvider } from "@/lib/identity";
-import { getAgreement, pendingFor, partyOf } from "@/lib/agreements";
+import { getAgreement, pendingFor, partyOf, seatMatches, seatTakenBy } from "@/lib/agreements";
 import { resolveBaseUrl, siteLocale, siteTimeZone } from "@/lib/site-config";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,13 +54,13 @@ export default async function AgreementPage({ params }: PageProps) {
           <section className="flex flex-col gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Parties</h2>
             <ul className="flex flex-col gap-1 text-sm">
-              {agreement.invitedHandles.map((h) => {
-                const p = agreement.parties.find((x) => x.subject.handle === h);
+              {agreement.invited.map((i) => {
+                const p = seatTakenBy(agreement, i);
                 return (
-                  <li key={h} className="flex items-center justify-between">
+                  <li key={i.id ?? i.handle} className="flex items-center justify-between">
                     <span>
-                      @{h}
-                      {h === session.handle ? " (you)" : ""}
+                      @{p?.subject.handle ?? i.handle}
+                      {seatMatches(i, session) ? " (you)" : ""}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {p ? `Accepted ${fmt(p.acceptedAt)}` : "Not yet"}
@@ -86,7 +86,7 @@ export default async function AgreementPage({ params }: PageProps) {
 
           {me && agreement.status !== "sealed" && (
             <p className="text-sm text-muted-foreground">
-              Waiting for the other {agreement.invitedHandles.length > 2 ? "parties" : "party"} to accept.
+              Waiting for the other {agreement.invited.length > 2 ? "parties" : "party"} to accept.
               Share this page with them:
               <span className="mt-1 block break-all font-mono text-xs">{`/app/a/${agreement.id}`}</span>
             </p>

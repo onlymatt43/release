@@ -4,7 +4,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getIdentityProvider, IdentityError, normalizeHandle } from "@/lib/identity";
 import { loadContract, ContractError } from "@/lib/contract";
-import { createAgreement } from "@/lib/agreements";
+import { createAgreement, countInTransitRequestedBy, maxInTransitPerRequester, type Invitee } from "@/lib/agreements";
 import { requireSession, clientInfo, checkConsents } from "@/lib/app-request";
 
 export async function POST(req: NextRequest) {
@@ -25,15 +25,33 @@ export async function POST(req: NextRequest) {
   const title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : null;
 
   try {
+    const cap = maxInTransitPerRequester();
+    if ((await countInTransitRequestedBy(session.id)) >= cap) {
+      return NextResponse.json({ error: `You already have ${cap} agreements in transit` }, { status: 429 });
+    }
+
     const contract = await loadContract();
     const consents = checkConsents(contract, body.consents);
     if (!consents.ok) return NextResponse.json({ error: `Consent "${consents.missing}" is required` }, { status: 422 });
 
-    const profile = await getIdentityProvider().getProfile(session);
+    const provider = getIdentityProvider();
+
+    // Bind each seat to the account behind the handle when the provider can
+    // tell us; a handle that later changes hands then no longer opens it.
+    const invited: Invitee[] = [];
+    for (const handle of handles) {
+      const resolved = await provider.resolveHandle(handle);
+      if (resolved && resolved.id === session.id) {
+        return NextResponse.json({ error: "You cannot invite yourself" }, { status: 422 });
+      }
+      invited.push({ handle: resolved?.handle ?? handle, id: resolved?.id ?? null });
+    }
+
+    const profile = await provider.getProfile(session);
     const agreement = await createAgreement({
       contract,
       title,
-      invitedHandles: handles,
+      invited,
       requester: { subject: session, profile, consents: consents.keys, ...clientInfo(req) },
     });
     return NextResponse.json({ id: agreement.id }, { status: 201 });

@@ -10,11 +10,21 @@ n'est écrite dans le code.
 
 ## 1. Entrée d'un visiteur
 
-Le fournisseur envoie le visiteur vers :
+Le fournisseur envoie le visiteur vers `/app/enter`, de préférence en
+**POST** (formulaire auto-soumis ou JSON), pour que le jeton ne passe ni
+dans l'URL, ni dans l'historique, ni dans les logs :
 
 ```
-GET {SITE_URL}/app/enter?token=<JWT>&return_to=/app
+POST {SITE_URL}/app/enter
+Content-Type: application/x-www-form-urlencoded
+
+token=<JWT>&return_to=/app
 ```
+
+Le GET `…/app/enter?token=<JWT>&return_to=/app` est accepté pour un
+fournisseur qui ne peut que rediriger. Dans les deux cas, donnez au jeton
+une durée de vie très courte (une à deux minutes) : il est rejouable
+jusqu'à son expiration.
 
 - `token` : JWT signé **HS256** avec `IDENTITY_JWT_SECRET`. Claims attendus :
 
@@ -76,9 +86,31 @@ Réponse attendue (`200`) :
 - `release` affiche et imprime **exactement** ces sections, dans cet ordre.
   Il ne connaît aucun nom de champ. Ajouter, retirer ou renommer un champ
   côté fournisseur ne demande aucun changement ici.
-- `src` : URI `data:` ou URL absolue. Les URL situées sur l'origine de
-  `IDENTITY_PROFILE_URL` sont appelées avec le même bearer.
+- `src` : URI `data:` ou URL absolue. Seules les URL sur l'origine de
+  `IDENTITY_PROFILE_URL` (appelées avec le même bearer) ou sur une origine
+  listée dans `IDENTITY_IMAGE_ORIGINS` sont récupérées ; toute autre URL est
+  ignorée et le document affiche « Image unavailable ». Taille maximale par
+  image : `PROFILE_IMAGE_MAX_BYTES` (5 Mo par défaut). Les URI `data:` sont
+  le choix le plus sûr : rien n'expire, rien n'est refusé.
 - `404` signifie « pas de profil » : `release` refuse l'action et le dit.
+
+## 2b. Résolution d'un handle (recommandé)
+
+Si `IDENTITY_RESOLVE_URL` est configuré, `release` l'appelle au moment de
+la demande pour chaque handle invité :
+
+```
+GET {IDENTITY_RESOLVE_URL}        avec {handle} remplacé
+Authorization: Bearer {IDENTITY_SHARED_SECRET}
+```
+
+Réponse `200` : `{ "id": "456", "handle": "bob", "name": "…", "avatar": "…" }`.
+Réponse `404` : aucun compte, la demande est refusée.
+
+L'invitation est alors liée à l'**identifiant** du compte : la personne
+peut changer de handle et rejoindre quand même, et quelqu'un qui
+récupérerait l'ancien handle ne le peut pas. Sans cette URL, l'invitation
+est liée au handle seul.
 
 ## 3. Contrat
 
@@ -97,9 +129,15 @@ par défaut.
    se connecte, coche les consentements, accepte. Son profil est récupéré et
    figé. Quand tous les handles invités ont accepté : `sealed`.
 3. Chaque partie télécharge `/api/app/agreements/{id}/pdf`.
-4. Dès que toutes les parties ont téléchargé, l'accord est **supprimé**.
-   Sinon, le cron `/api/cron/purge` (quotidien, `vercel.json`) supprime tout
-   accord dont `expires_at` est passé (`AGREEMENT_TTL_DAYS`, 7 par défaut).
+4. Dès que toutes les parties ont téléchargé, l'accord est **supprimé**,
+   immédiatement ou à la fin de la fenêtre `AGREEMENT_DELIVERY_GRACE_MINUTES`
+   si elle est configurée (pour permettre de reprendre un téléchargement
+   interrompu). Sinon, tout accord dont `expires_at` est passé
+   (`AGREEMENT_TTL_DAYS`, 7 par défaut) est supprimé au premier accès, et
+   au plus tard par le cron quotidien `/api/cron/purge` (`vercel.json`).
+
+Un compte ne peut avoir que `AGREEMENT_MAX_IN_TRANSIT` demandes en cours
+à la fois (10 par défaut).
 
 Aucune notification n'est envoyée par `release`.
 

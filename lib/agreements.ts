@@ -19,13 +19,24 @@ export interface Party {
   downloadedAt: string | null;
 }
 
+/**
+ * Someone expected to take part. When the provider resolved the handle at
+ * invitation time, `id` binds the seat to that account even if the handle
+ * later changes hands; otherwise the seat is bound to the handle alone.
+ */
+export interface Invitee {
+  handle: string;
+  id: string | null;
+}
+
 export interface Agreement {
   id: string;
   contract: Contract;
   title: string | null;
   status: AgreementStatus;
-  /** Handles (lowercase, no "@") expected to take part, in invitation order. */
-  invitedHandles: string[];
+  requesterId: string;
+  /** Everyone expected to take part, requester first, in invitation order. */
+  invited: Invitee[];
   parties: Party[];
   createdAt: string;
   sealedAt: string | null;
@@ -35,6 +46,21 @@ export interface Agreement {
 export function agreementTtlDays(): number {
   const days = Number.parseFloat(process.env.AGREEMENT_TTL_DAYS ?? "");
   return Number.isFinite(days) && days > 0 ? days : 7;
+}
+
+/** Most agreements one account may have in transit at once (default 10). */
+export function maxInTransitPerRequester(): number {
+  const n = Number.parseInt(process.env.AGREEMENT_MAX_IN_TRANSIT ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : 10;
+}
+
+/**
+ * Minutes a fully delivered agreement lingers before deletion, so a party
+ * whose download broke off can retry (default 0: deleted at once).
+ */
+export function deliveryGraceMinutes(): number {
+  const n = Number.parseFloat(process.env.AGREEMENT_DELIVERY_GRACE_MINUTES ?? "");
+  return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
 function newId(): string {
@@ -51,7 +77,8 @@ function rowToAgreement(row: Record<string, unknown>, partyRows: Record<string, 
     contract: JSON.parse(row.contract_json as string) as Contract,
     title: (row.title as string | null) ?? null,
     status: row.status as AgreementStatus,
-    invitedHandles: JSON.parse(row.invited_handles as string) as string[],
+    requesterId: row.requester_id as string,
+    invited: JSON.parse(row.invited_json as string) as Invitee[],
     parties: partyRows.map((p) => ({
       subject: JSON.parse(p.subject_json as string) as Identity,
       profile: JSON.parse(p.profile_json as string) as Profile,
@@ -67,10 +94,19 @@ function rowToAgreement(row: Record<string, unknown>, partyRows: Record<string, 
   };
 }
 
+/**
+ * Load an agreement. One past its deadline is deleted on the spot and
+ * reported as absent, so nothing outlives its deadline even between
+ * scheduled purges.
+ */
 export async function getAgreement(id: string): Promise<Agreement | null> {
   const db = getDb();
   const a = await db.execute({ sql: "SELECT * FROM agreements WHERE id = ?", args: [id] });
   if (!a.rows[0]) return null;
+  if ((a.rows[0].expires_at as string) <= nowIso()) {
+    await deleteAgreement(id);
+    return null;
+  }
   const p = await db.execute({
     sql: "SELECT * FROM agreement_parties WHERE agreement_id = ? ORDER BY accepted_at ASC",
     args: [id],
@@ -87,7 +123,9 @@ export async function listAgreementsFor(subject: Identity): Promise<Agreement[]>
           LEFT JOIN agreement_parties p ON p.agreement_id = a.id
           WHERE p.subject_id = :id
              OR EXISTS (
-               SELECT 1 FROM json_each(a.invited_handles) h WHERE h.value = :handle
+               SELECT 1 FROM json_each(a.invited_json) i
+               WHERE (json_extract(i.value, '$.id') IS NOT NULL AND json_extract(i.value, '$.id') = :id)
+                  OR (json_extract(i.value, '$.id') IS NULL AND json_extract(i.value, '$.handle') = :handle)
              )
           ORDER BY a.created_at DESC`,
     args: { id: subject.id, handle: subject.handle },
@@ -129,25 +167,36 @@ async function insertParty(agreementId: string, party: PartyInput, acceptedAt: s
   });
 }
 
+/** How many in-transit agreements this account has requested. */
+export async function countInTransitRequestedBy(subjectId: string): Promise<number> {
+  const res = await getDb().execute({
+    sql: "SELECT COUNT(*) AS n FROM agreements WHERE requester_id = ? AND expires_at > ?",
+    args: [subjectId, nowIso()],
+  });
+  return Number(res.rows[0]?.n ?? 0);
+}
+
 /** Create an agreement: the requester joins immediately, the others are invited. */
 export async function createAgreement(input: {
   contract: Contract;
   title: string | null;
   requester: PartyInput;
-  invitedHandles: string[];
+  invited: Invitee[];
 }): Promise<Agreement> {
   const id = newId();
   const now = nowIso();
   const expires = new Date(Date.now() + agreementTtlDays() * 86_400_000).toISOString();
-  const invited = [input.requester.subject.handle, ...input.invitedHandles];
+  const requester = input.requester.subject;
+  const invited: Invitee[] = [{ handle: requester.handle, id: requester.id }, ...input.invited];
 
   await getDb().execute({
-    sql: `INSERT INTO agreements (id, contract_json, title, status, invited_handles, created_at, expires_at)
-          VALUES (:id, :contract, :title, 'pending', :invited, :now, :expires)`,
+    sql: `INSERT INTO agreements (id, contract_json, title, status, requester_id, invited_json, created_at, expires_at)
+          VALUES (:id, :contract, :title, 'pending', :requesterId, :invited, :now, :expires)`,
     args: {
       id,
       contract: JSON.stringify(input.contract),
       title: input.title,
+      requesterId: requester.id,
       invited: JSON.stringify(invited),
       now,
       expires,
@@ -160,11 +209,21 @@ export async function createAgreement(input: {
   return created;
 }
 
+/** Whether an invitation seat belongs to this subject. */
+export function seatMatches(invitee: Invitee, subject: Identity): boolean {
+  return invitee.id !== null ? invitee.id === subject.id : invitee.handle === subject.handle;
+}
+
+/** The party who has taken this seat, if any. */
+export function seatTakenBy(agreement: Agreement, invitee: Invitee): Party | null {
+  return agreement.parties.find((p) => seatMatches(invitee, p.subject)) ?? null;
+}
+
 /** Whether this subject is expected to join and has not joined yet. */
 export function pendingFor(agreement: Agreement, subject: Identity): boolean {
   return (
     agreement.status === "pending" &&
-    agreement.invitedHandles.includes(subject.handle) &&
+    agreement.invited.some((i) => seatMatches(i, subject)) &&
     !agreement.parties.some((p) => p.subject.id === subject.id)
   );
 }
@@ -179,8 +238,8 @@ export async function acceptAgreement(agreement: Agreement, party: PartyInput): 
   const now = nowIso();
   await insertParty(agreement.id, party, now);
 
-  const joined = new Set([...agreement.parties.map((p) => p.subject.handle), party.subject.handle]);
-  const complete = agreement.invitedHandles.every((h) => joined.has(h));
+  const joined = [...agreement.parties.map((p) => p.subject), party.subject];
+  const complete = agreement.invited.every((i) => joined.some((s) => seatMatches(i, s)));
   if (complete) {
     await getDb().execute({
       sql: "UPDATE agreements SET status = 'sealed', sealed_at = ? WHERE id = ?",
@@ -208,6 +267,24 @@ export async function everyoneDownloaded(agreementId: string): Promise<boolean> 
     args: [agreementId],
   });
   return Number(res.rows[0]?.remaining ?? 1) === 0;
+}
+
+/**
+ * Everyone has their copy: delete now, or, when a grace window is
+ * configured, move the deadline to the end of that window so a broken
+ * download can be retried. Never pushes an existing deadline later.
+ */
+export async function finishDelivery(agreementId: string): Promise<void> {
+  const grace = deliveryGraceMinutes();
+  if (grace <= 0) {
+    await deleteAgreement(agreementId);
+    return;
+  }
+  const deadline = new Date(Date.now() + grace * 60_000).toISOString();
+  await getDb().execute({
+    sql: "UPDATE agreements SET expires_at = MIN(expires_at, ?) WHERE id = ?",
+    args: [deadline, agreementId],
+  });
 }
 
 /** Remove an agreement and everything attached to it. */

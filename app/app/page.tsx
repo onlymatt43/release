@@ -4,7 +4,7 @@ import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { getIdentityProvider } from "@/lib/identity";
 import { loadContract, ContractError, type Contract } from "@/lib/contract";
-import { listAgreementsFor, pendingFor, partyOf, agreementTtlDays, type Agreement } from "@/lib/agreements";
+import { listAgreementsFor, pendingFor, partyOf, seatMatches, seatTakenBy, agreementTtlDays, type Agreement } from "@/lib/agreements";
 import { resolveBaseUrl, siteLocale } from "@/lib/site-config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,8 +20,8 @@ function describe(a: Agreement, me: Identity): { label: string; tone: "default" 
       ? { label: "Downloaded", tone: "outline" }
       : { label: "Ready to download", tone: "default" };
   }
-  const waiting = a.invitedHandles.filter((h) => !a.parties.some((p) => p.subject.handle === h));
-  return { label: `Waiting for ${waiting.map((h) => `@${h}`).join(", ")}`, tone: "secondary" };
+  const waiting = a.invited.filter((i) => !seatTakenBy(a, i));
+  return { label: `Waiting for ${waiting.map((i) => `@${i.handle}`).join(", ")}`, tone: "secondary" };
 }
 
 export default async function AppHome() {
@@ -80,12 +80,12 @@ export default async function AppHome() {
               <ul className="divide-y">
                 {agreements.map((a) => {
                   const d = describe(a, session);
-                  const others = a.invitedHandles.filter((h) => h !== session.handle);
+                  const others = a.invited.filter((i) => !seatMatches(i, session));
                   return (
                     <li key={a.id} className="flex items-center justify-between gap-3 py-3">
                       <div className="min-w-0">
                         <Link href={`/app/a/${a.id}`} className="font-medium hover:underline">
-                          {others.map((h) => `@${h}`).join(", ")}
+                          {others.map((i) => `@${i.handle}`).join(", ")}
                         </Link>
                         <div className="truncate text-xs text-muted-foreground">
                           {a.title ? `${a.title} · ` : ""}

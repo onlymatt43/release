@@ -1,9 +1,10 @@
 // Deliver the sealed document to one of its parties. Once every party has
-// downloaded, the agreement is deleted after this response is sent.
+// downloaded, the agreement is deleted after this response is sent (or at
+// the end of the configured grace window).
 
 import { NextResponse, type NextRequest } from "next/server";
 import { after } from "next/server";
-import { getAgreement, partyOf, markDownloaded, everyoneDownloaded, deleteAgreement } from "@/lib/agreements";
+import { getAgreement, partyOf, markDownloaded, everyoneDownloaded, finishDelivery } from "@/lib/agreements";
 import { renderAgreementPdf } from "@/lib/pdf/render";
 import { requireSession } from "@/lib/app-request";
 
@@ -29,7 +30,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   after(async () => {
     try {
       await markDownloaded(agreement.id, session.id);
-      if (await everyoneDownloaded(agreement.id)) await deleteAgreement(agreement.id);
+      if (await everyoneDownloaded(agreement.id)) await finishDelivery(agreement.id);
     } catch (err) {
       console.error("[agreements pdf cleanup]", err instanceof Error ? err.message : err);
     }

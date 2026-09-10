@@ -11,8 +11,13 @@
 //   IDENTITY_JWT_AUDIENCE    optional expected "aud" claim
 //   IDENTITY_PROFILE_URL     profile endpoint; "{id}" and "{handle}" are
 //                            replaced by the subject's values
-//   IDENTITY_SHARED_SECRET   bearer sent to the profile endpoint and to any
-//                            image URL on the same origin
+//   IDENTITY_RESOLVE_URL     optional handle lookup; "{handle}" is replaced.
+//                            Returns { id, handle, name?, avatar? } or 404.
+//   IDENTITY_SHARED_SECRET   bearer sent to the profile and resolve endpoints
+//                            and to any image URL on the same origin
+//   IDENTITY_IMAGE_ORIGINS   optional comma-separated extra origins profile
+//                            image URLs may point to (the provider's own
+//                            origin is always allowed)
 
 import { jwtVerify } from "jose";
 import {
@@ -45,6 +50,19 @@ export function profileOrigin(): string | null {
   }
 }
 
+/** Origins release may fetch profile images from: the provider's, plus any configured extras. */
+export function allowedImageOrigins(): Set<string> {
+  const origins = new Set<string>();
+  const provider = profileOrigin();
+  if (provider) origins.add(provider);
+  for (const raw of (env("IDENTITY_IMAGE_ORIGINS") ?? "").split(",")) {
+    const t = raw.trim();
+    if (!t) continue;
+    try { origins.add(new URL(t).origin); } catch { /* ignore malformed */ }
+  }
+  return origins;
+}
+
 /** Authorization header for a URL served by the identity provider, if any. */
 export function providerAuthHeaders(url: string): Record<string, string> {
   const origin = profileOrigin();
@@ -54,6 +72,25 @@ export function providerAuthHeaders(url: string): Record<string, string> {
     return new URL(url).origin === origin ? { Authorization: `Bearer ${secret}` } : {};
   } catch {
     return {};
+  }
+}
+
+async function fetchProviderJson(url: string): Promise<{ status: number; body: unknown }> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Accept: "application/json", ...providerAuthHeaders(url) },
+      cache: "no-store",
+    });
+  } catch {
+    throw new IdentityError("Identity provider unreachable", 502);
+  }
+  if (res.status === 404) return { status: 404, body: null };
+  if (!res.ok) throw new IdentityError(`Identity provider returned ${res.status}`, 502);
+  try {
+    return { status: res.status, body: await res.json() };
+  } catch {
+    throw new IdentityError("Identity provider returned invalid JSON", 502);
   }
 }
 
@@ -96,25 +133,17 @@ export const httpJwtProvider: IdentityProvider = {
     const url = template
       .replace("{id}", encodeURIComponent(subject.id))
       .replace("{handle}", encodeURIComponent(subject.handle));
-
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        headers: { Accept: "application/json", ...providerAuthHeaders(url) },
-        cache: "no-store",
-      });
-    } catch {
-      throw new IdentityError("Identity provider unreachable", 502);
-    }
-    if (res.status === 404) throw new IdentityError("No profile on file for this account", 404);
-    if (!res.ok) throw new IdentityError(`Identity provider returned ${res.status}`, 502);
-
-    let body: unknown;
-    try {
-      body = await res.json();
-    } catch {
-      throw new IdentityError("Identity provider returned invalid JSON", 502);
-    }
+    const { status, body } = await fetchProviderJson(url);
+    if (status === 404) throw new IdentityError("No profile on file for this account", 404);
     return parseProfile(body, subject);
+  },
+
+  async resolveHandle(handle: string): Promise<Identity | null> {
+    const template = env("IDENTITY_RESOLVE_URL");
+    if (!template) return null;
+    const url = template.replace("{handle}", encodeURIComponent(handle));
+    const { status, body } = await fetchProviderJson(url);
+    if (status === 404) throw new IdentityError(`No account found for @${handle}`, 404);
+    return parseIdentity(body);
   },
 };
