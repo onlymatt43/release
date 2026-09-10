@@ -64,7 +64,7 @@ export default async function PrivacyPage({
             </ul>
             <h2>Suppression des données</h2>
             <p>
-              Cette copie est supprimée à la fin de la fenêtre <code>AGREEMENT_DELIVERY_GRACE_MINUTES</code> (15 minutes par défaut) après que chaque partie a téléchargé son PDF, ou au plus tard <code>AGREEMENT_TTL_DAYS</code> (7 jours par défaut) après la demande. La suppression est effective au premier accès suivant la date limite, ou par une tâche planifiée quotidienne.
+              Cette copie est supprimée à la fin de la fenêtre <code>AGREEMENT_DELIVERY_GRACE_MINUTES</code> (15 minutes par défaut) après que chaque partie a téléchargé son PDF, ou au plus tard <code>AGREEMENT_TTL_DAYS</code> (7 jours par défaut) après la demande. La suppression est effective au premier accès suivant la date limite, ou par une tâche planifiée horaire.
             </p>
             <h2>PDF</h2>
             <p>
@@ -101,7 +101,7 @@ export default async function PrivacyPage({
             </ul>
             <h2>Data deletion</h2>
             <p>
-              This snapshot is deleted at the end of the <code>AGREEMENT_DELIVERY_GRACE_MINUTES</code> window (15 minutes by default) after every party has downloaded their PDF, or no later than <code>AGREEMENT_TTL_DAYS</code> (7 days by default) after the request. Deletion takes effect on the first access past the deadline, or via a daily scheduled task.
+              This snapshot is deleted at the end of the <code>AGREEMENT_DELIVERY_GRACE_MINUTES</code> window (15 minutes by default) after every party has downloaded their PDF, or no later than <code>AGREEMENT_TTL_DAYS</code> (7 days by default) after the request. Deletion takes effect on the first access past the deadline, or via an hourly scheduled task.
             </p>
             <h2>PDF</h2>
             <p>

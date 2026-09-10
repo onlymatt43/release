@@ -347,8 +347,8 @@ export async function finishDelivery(agreementId: string): Promise<void> {
   }
   const deadline = new Date(Date.now() + grace * 60_000).toISOString();
   await getDb().execute({
-    sql: "UPDATE agreements SET expires_at = MIN(expires_at, ?) WHERE id = ?",
-    args: [deadline, agreementId],
+    sql: "UPDATE agreements SET expires_at = CASE WHEN ? < expires_at THEN ? ELSE expires_at END WHERE id = ?",
+    args: [deadline, deadline, agreementId],
   });
 }
 
