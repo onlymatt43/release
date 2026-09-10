@@ -54,15 +54,15 @@ export async function POST(req: NextRequest) {
       invited.push({ handle: resolved?.handle ?? handle, id: resolved?.id ?? null, signs: invitedSign });
     }
 
-    let party = null;
-    if (requesterSigns) {
-      const profile = await profileOrNull(provider, session);
-      if (!profile) {
-        const setupUrl = provider.profileSetupUrl(`${await resolveBaseUrl()}/app`);
-        return NextResponse.json({ error: "Your profile is not on file yet", setupUrl }, { status: 404 });
-      }
-      party = { subject: session, profile, consents: consents.keys, ...clientInfo(req) };
+    // A profile on file is mandatory to take part at all, signing or not.
+    const profile = await profileOrNull(provider, session);
+    if (!profile) {
+      const setupUrl = provider.profileSetupUrl(`${await resolveBaseUrl()}/app`);
+      return NextResponse.json({ error: "Your profile is not on file yet", setupUrl }, { status: 404 });
     }
+    const party = requesterSigns
+      ? { subject: session, profile, consents: consents.keys, ...clientInfo(req) }
+      : null;
 
     const agreement = await createAgreement({
       contract,

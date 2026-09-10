@@ -92,11 +92,12 @@ Réponse attendue (`200`) :
   ignorée et le document affiche « Image unavailable ». Taille maximale par
   image : `PROFILE_IMAGE_MAX_BYTES` (5 Mo par défaut). Les URI `data:` sont
   le choix le plus sûr : rien n'expire, rien n'est refusé.
-- `404` signifie « pas de profil ». `Release` n'affiche alors pas le bouton
-  de signature mais « Complete my profile », qui envoie la personne vers
+- `404` signifie « pas de profil ». Le profil est **obligatoire** pour
+  utiliser `/app` : toute page redirige alors immédiatement vers
   `IDENTITY_PROFILE_SETUP_URL?return_to=<URL absolue>`. Une fois le profil
-  rempli, le fournisseur la renvoie sur `return_to` (la session `release`
-  est encore valide, pas besoin de repasser par `/app/enter`) et elle signe.
+  rempli, le fournisseur renvoie la personne sur `return_to` (la session
+  `release` est encore valide, pas besoin de repasser par `/app/enter`).
+  Sans `IDENTITY_PROFILE_SETUP_URL`, la personne voit un écran bloquant.
 
 ## 2b. Résolution d'un handle (recommandé)
 

@@ -10,11 +10,11 @@ import type { Contract } from "@/lib/contract";
 import ConsentChecklist, { allRequiredChecked } from "./ConsentChecklist";
 import ContractText from "./ContractText";
 
-export default function RequestForm({ contract, hasProfile }: { contract: Contract; hasProfile: boolean | null }) {
+export default function RequestForm({ contract }: { contract: Contract }) {
   const router = useRouter();
   const [handle, setHandle] = useState("");
   const [title, setTitle] = useState("");
-  const [iSign, setISign] = useState(hasProfile !== false);
+  const [iSign, setISign] = useState(true);
   const [theySign, setTheySign] = useState(true);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);

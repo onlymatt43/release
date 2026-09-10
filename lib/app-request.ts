@@ -1,7 +1,9 @@
 // Helpers shared by the transport flow's route handlers.
 
 import { NextResponse, type NextRequest } from "next/server";
+import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
+import { resolveBaseUrl } from "@/lib/site-config";
 import type { Identity } from "@/lib/identity/types";
 import type { Contract } from "@/lib/contract";
 import { IdentityError, type IdentityProvider, type Profile } from "@/lib/identity/types";
@@ -46,4 +48,22 @@ export function checkConsents(contract: Contract, raw: unknown): { ok: true; key
 export function safeReturnPath(raw: string | null | undefined, fallback = "/app"): string {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return fallback;
   return raw;
+}
+
+/**
+ * A profile on file is mandatory to use the transport flow at all. A signed-in
+ * visitor without one is sent to the provider's profile form and brought back
+ * to `returnPath` once done. Returns the profile otherwise. When no setup URL
+ * is configured, the caller gets null and shows a blocking message instead.
+ */
+export async function requireProfile(
+  provider: IdentityProvider,
+  subject: Identity,
+  returnPath: string,
+): Promise<Profile | null> {
+  const profile = await profileOrNull(provider, subject);
+  if (profile) return profile;
+  const setupUrl = provider.profileSetupUrl(`${await resolveBaseUrl()}${returnPath}`);
+  if (setupUrl) redirect(setupUrl);
+  return null;
 }

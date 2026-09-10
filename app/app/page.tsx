@@ -1,11 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { unstable_rethrow } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getIdentityProvider } from "@/lib/identity";
 import { loadContract, ContractError, type Contract } from "@/lib/contract";
 import { listAgreementsFor, pendingFor, seatMatches, seatTakenBy, hasDownloaded, agreementTtlDays, type Agreement } from "@/lib/agreements";
-import { profileOrNull } from "@/lib/app-request";
+import { requireProfile } from "@/lib/app-request";
+import NoProfile from "@/components/app/NoProfile";
 import { resolveBaseUrl, siteLocale } from "@/lib/site-config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +36,18 @@ export default async function AppHome() {
     return <SignInPrompt providerName={provider.name} loginUrl={provider.loginUrl(`${base}/app`)} />;
   }
 
+  // Mandatory: no profile on file, no access. requireProfile redirects to the
+  // provider's profile form; null means no such form is configured.
+  let profileOk = false;
+  let providerError: string | null = null;
+  try {
+    profileOk = (await requireProfile(provider, session, "/app")) !== null;
+  } catch (err) {
+    unstable_rethrow(err); // redirect() to the profile form travels as a thrown error
+    providerError = err instanceof Error ? err.message : "Identity provider unavailable";
+  }
+  if (!profileOk) return <NoProfile providerName={provider.name} error={providerError} />;
+
   let contract: Contract | null = null;
   let contractError: string | null = null;
   try {
@@ -45,17 +59,6 @@ export default async function AppHome() {
   const agreements = await listAgreementsFor(session);
   const rows = await Promise.all(agreements.map(async (a) => ({ a, d: await describe(a, session) })));
   const locale = siteLocale() ?? undefined;
-
-  // Whether the provider has a profile on file for this visitor; null when
-  // the provider could not be reached (the request form will say so).
-  let hasProfile: boolean | null = null;
-  try {
-    hasProfile = (await profileOrNull(provider, session)) !== null;
-  } catch {
-    hasProfile = null;
-  }
-  const base = await resolveBaseUrl();
-  const setupUrl = provider.profileSetupUrl(`${base}/app`);
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -76,19 +79,8 @@ export default async function AppHome() {
       </header>
 
       <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
-        {hasProfile === false && (
-          <div className="flex flex-col gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
-            <span>Your profile is not on file yet. You need it to sign; you can still request a consent you do not sign yourself.</span>
-            {setupUrl && (
-              <a href={setupUrl} className="inline-flex shrink-0 items-center justify-center rounded-lg bg-amber-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-800">
-                Complete my profile
-              </a>
-            )}
-          </div>
-        )}
-
         {contract ? (
-          <RequestForm contract={contract} hasProfile={hasProfile} />
+          <RequestForm contract={contract} />
         ) : (
           <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{contractError}</p>
         )}

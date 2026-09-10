@@ -1,11 +1,12 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, unstable_rethrow } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getIdentityProvider } from "@/lib/identity";
 import { getAgreement, pendingFor, seatOf, seatMatches, seatTakenBy } from "@/lib/agreements";
-import { profileOrNull } from "@/lib/app-request";
+import { requireProfile } from "@/lib/app-request";
+import NoProfile from "@/components/app/NoProfile";
 import { resolveBaseUrl, siteLocale, siteTimeZone } from "@/lib/site-config";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,23 +28,24 @@ export default async function AgreementPage({ params }: PageProps) {
     return <SignInPrompt providerName={provider.name} loginUrl={provider.loginUrl(`${base}/app/a/${id}`)} />;
   }
 
+  // Mandatory: no profile on file, no access. Redirects to the profile form
+  // and back here once it exists.
+  let profileOk = false;
+  let providerError: string | null = null;
+  try {
+    profileOk = (await requireProfile(provider, session, `/app/a/${id}`)) !== null;
+  } catch (err) {
+    unstable_rethrow(err); // redirect() to the profile form travels as a thrown error
+    providerError = err instanceof Error ? err.message : "Identity provider unavailable";
+  }
+  if (!profileOk) return <NoProfile providerName={provider.name} error={providerError} />;
+
   const agreement = await getAgreement(id);
   if (!agreement) notFound();
 
   const seat = seatOf(agreement, session);
   if (!seat) notFound();
   const pending = pendingFor(agreement, session);
-
-  // A signer without a profile on file is sent to fill it in, then back here.
-  let setupUrl: string | null = null;
-  if (pending) {
-    let hasProfile: boolean | null = null;
-    try { hasProfile = (await profileOrNull(provider, session)) !== null; } catch { hasProfile = null; }
-    if (hasProfile === false) {
-      const base = await resolveBaseUrl();
-      setupUrl = provider.profileSetupUrl(`${base}/app/a/${id}`) ?? "";
-    }
-  }
 
   const locale = siteLocale() ?? undefined;
   const timeZone = siteTimeZone() ?? undefined;
@@ -85,20 +87,7 @@ export default async function AgreementPage({ params }: PageProps) {
 
           <ContractText contract={agreement.contract} />
 
-          {pending && setupUrl === null && <AcceptForm agreementId={agreement.id} contract={agreement.contract} />}
-
-          {pending && setupUrl !== null && (
-            <div className="flex flex-col gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <span>Your profile is not on file yet. Fill it in once, then come back here to sign.</span>
-              {setupUrl ? (
-                <a href={setupUrl} className="inline-flex items-center justify-center rounded-lg bg-amber-900 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800">
-                  Complete my profile
-                </a>
-              ) : (
-                <span className="text-xs">Ask the operator where to complete your profile.</span>
-              )}
-            </div>
-          )}
+          {pending && <AcceptForm agreementId={agreement.id} contract={agreement.contract} />}
 
           {agreement.status === "sealed" && (
             <a
