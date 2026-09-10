@@ -3,8 +3,12 @@
 Contexte vérifié le 2026-09-10 sur la branche `claude/busy-thompson-d0ubrs`
 (commit après `eb6d7b7`).
 
-Décision de l'auteur : **`release` ne conserve aucune donnée d'utilisateur.**
-Le dépôt contient pourtant deux applications :
+Une seule chose vient de l'auteur, mot pour mot : **« on ne garde
+aucunement les données des users »**. Tout le reste de ce document est une
+déduction de l'agent qui l'a rédigé, à partir du code. Chaque phase peut être
+confirmée, modifiée ou rayée par l'auteur avant exécution.
+
+Le dépôt contient deux applications :
 
 - le flux de transport `/app` (accords en transit, effacés après livraison),
   documenté dans `docs/INTEGRATION.md` et conforme au code ;
@@ -15,8 +19,10 @@ Le dépôt contient pourtant deux applications :
 La base Turso `release` ne contient que `agreements` et `agreement_parties`.
 Les trois autres tables n'y ont jamais été créées.
 
-Ce plan retire l'ancien flux, corrige les textes qui le décrivent, et fige la
-décision pour les sessions suivantes. Un commit par phase, `npm run lint`,
+Ce plan propose de retirer l'ancien flux (déduction : garder du code qui
+stocke des pièces d'identité contredit la phrase de l'auteur), de corriger
+les textes qui le décrivent, et d'écrire la phrase de l'auteur là où les
+sessions suivantes la liront. Un commit par phase, `npm run lint`,
 `npx tsc --noEmit` et `npm run build` verts avant chaque commit. Ne pas
 sauter de phase, ne pas fusionner deux phases dans un commit.
 
@@ -235,19 +241,20 @@ Conserver le bloc `nextjs-agent-rules` existant. Ajouter dessous :
 ```markdown
 # Invariants
 
-Décision de l'auteur, prioritaire sur tout ce que le code laisse croire.
+Règle de l'auteur, prioritaire sur tout ce que le code laisse croire :
 
-1. `release` ne conserve aucune donnée d'utilisateur. Pas de comptes, pas de
-   profils, pas de documents, pas de stockage de fichiers. Une donnée
-   n'existe qu'en transit et a une date de mort (`expires_at`).
+1. `release` ne conserve aucune donnée d'utilisateur.
+
+Ce que le code fait aujourd'hui pour respecter cette règle, à ne pas
+défaire sans l'accord de l'auteur :
+
 2. L'identité et les profils viennent d'un fournisseur externe via
    `lib/identity/`. `release` affiche et imprime ce qu'il reçoit et ne
    définit pas ce qu'un profil contient.
 3. Le contrat est une configuration (`CONTRACT_URL` / `CONTRACT_JSON`),
-   figée dans chaque accord. Aucun texte légal, nom de champ ou marque
-   dans le code.
-4. Le seul flux est `/app` et `/api/app`. Les seules tables sont
-   `agreements` et `agreement_parties` (`db/schema.sql`).
+   figée dans chaque accord.
+4. Un accord n'existe qu'en transit et a une date de mort (`expires_at`).
+   Les seules tables sont `agreements` et `agreement_parties`.
 
 Avant toute modification : `npm run check:invariants`. S'il échoue, le
 faire passer est la première tâche. Ne pas modifier le script pour qu'il
