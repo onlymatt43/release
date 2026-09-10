@@ -1,6 +1,6 @@
 // Visitor session for the transport flow: a signed, httpOnly cookie carrying
-// only the identity the provider asserted (id, handle, display name, avatar).
-// Nothing is stored server-side; the provider stays the source of truth.
+// only subject id and handle. Nothing is stored server-side; the provider
+// stays the source of truth.
 
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
