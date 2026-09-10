@@ -1,12 +1,13 @@
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { createElement, type ReactElement } from "react";
 import type { Agreement } from "@/lib/agreements";
-import { siteBrandName, siteLocale, siteTimeZone } from "@/lib/site-config";
+import { siteBrandName, siteTimeZone } from "@/lib/site-config";
+import { getAppDict } from "@/lib/app-i18n";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/locale";
 import { AgreementDocument, type RenderedParty } from "./agreement-document";
 import { resolveImage, type ResolvedImage } from "./images";
 
-export async function renderAgreementPdf(agreement: Agreement): Promise<Buffer> {
-  const locale = siteLocale() ?? undefined;
+export async function renderAgreementPdf(agreement: Agreement, locale: Locale = DEFAULT_LOCALE): Promise<Buffer> {
   const timeZone = siteTimeZone() ?? undefined;
   const formatDateTime = (iso: string) => new Date(iso).toLocaleString(locale, { timeZone });
 
@@ -29,6 +30,7 @@ export async function renderAgreementPdf(agreement: Agreement): Promise<Buffer> 
     parties,
     brand: siteBrandName(),
     formatDateTime,
+    t: getAppDict(locale).pdf,
   });
   return renderToBuffer(element as unknown as ReactElement<DocumentProps>);
 }

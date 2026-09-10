@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { headers } from "next/headers";
 import { unstable_rethrow } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getIdentityProvider } from "@/lib/identity";
@@ -9,32 +10,40 @@ import { listAgreementsFor, pendingFor, seatMatches, seatTakenBy, hasDownloaded,
 import { requireProfile } from "@/lib/app-request";
 import NoProfile from "@/components/app/NoProfile";
 import { loadReminderConfig } from "@/lib/reminders";
-import { resolveBaseUrl, siteLocale } from "@/lib/site-config";
+import { resolveBaseUrl } from "@/lib/site-config";
+import { pickLocale, type Locale } from "@/lib/locale";
+import { getAppDict, type AppDict } from "@/lib/app-i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import RequestForm from "@/components/app/RequestForm";
 import SignInPrompt from "@/components/app/SignInPrompt";
 import SignOutButton from "@/components/app/SignOutButton";
+import LangToggle from "@/components/app/LangToggle";
 import type { Identity } from "@/lib/identity/types";
 
-async function describe(a: Agreement, me: Identity): Promise<{ label: string; tone: "default" | "secondary" | "outline" }> {
-  if (pendingFor(a, me)) return { label: "Waiting for you", tone: "default" };
+async function describe(a: Agreement, me: Identity, t: AppDict): Promise<{ label: string; tone: "default" | "secondary" | "outline" }> {
+  if (pendingFor(a, me)) return { label: t.inTransit.waitingForYou, tone: "default" };
   if (a.status === "sealed") {
     return (await hasDownloaded(a.id, me.id))
-      ? { label: "Downloaded", tone: "outline" }
-      : { label: "Ready to download", tone: "default" };
+      ? { label: t.inTransit.downloaded, tone: "outline" }
+      : { label: t.inTransit.readyToDownload, tone: "default" };
   }
   const waiting = a.invited.filter((i) => i.signs && !seatTakenBy(a, i));
-  return { label: `Waiting for ${waiting.map((i) => `@${i.handle}`).join(", ")}`, tone: "secondary" };
+  return { label: t.inTransit.waitingFor(waiting.map((i) => `@${i.handle}`).join(", ")), tone: "secondary" };
 }
 
-export default async function AppHome() {
+export default async function AppHome({ searchParams }: { searchParams: Promise<{ lang?: string }> }) {
+  const { lang } = await searchParams;
+  const h = await headers();
+  const locale: Locale = pickLocale(h.get("accept-language"), lang);
+  const t = getAppDict(locale);
+
   const session = await getSession();
   const provider = getIdentityProvider();
 
   if (!session) {
     const base = await resolveBaseUrl();
-    return <SignInPrompt providerName={provider.name} loginUrl={provider.loginUrl(`${base}/app`)} />;
+    return <SignInPrompt providerName={provider.name} loginUrl={provider.loginUrl(`${base}/app`)} locale={locale} />;
   }
 
   // Mandatory: no profile on file, no access. requireProfile redirects to the
@@ -47,7 +56,7 @@ export default async function AppHome() {
     unstable_rethrow(err); // redirect() to the profile form travels as a thrown error
     providerError = err instanceof Error ? err.message : "Identity provider unavailable";
   }
-  if (!profileOk) return <NoProfile providerName={provider.name} error={providerError} />;
+  if (!profileOk) return <NoProfile providerName={provider.name} error={providerError} locale={locale} />;
 
   let contract: Contract | null = null;
   let contractError: string | null = null;
@@ -65,8 +74,7 @@ export default async function AppHome() {
   }
 
   const agreements = await listAgreementsFor(session);
-  const rows = await Promise.all(agreements.map(async (a) => ({ a, d: await describe(a, session) })));
-  const locale = siteLocale() ?? undefined;
+  const rows = await Promise.all(agreements.map(async (a) => ({ a, d: await describe(a, session, t) })));
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -82,24 +90,27 @@ export default async function AppHome() {
               <div className="text-xs text-muted-foreground">@{session.handle}</div>
             </div>
           </div>
-          <SignOutButton />
+          <div className="flex items-center gap-3">
+            <LangToggle />
+            <SignOutButton locale={locale} />
+          </div>
         </div>
       </header>
 
       <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
         {contract ? (
-          <RequestForm contract={contract} canAutoRemind={canAutoRemind} />
+          <RequestForm contract={contract} canAutoRemind={canAutoRemind} locale={locale} />
         ) : (
           <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{contractError}</p>
         )}
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">In transit</CardTitle>
+            <CardTitle className="text-base">{t.inTransit.heading}</CardTitle>
           </CardHeader>
           <CardContent>
             {agreements.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing in transit.</p>
+              <p className="text-sm text-muted-foreground">{t.inTransit.empty}</p>
             ) : (
               <ul className="divide-y">
                 {rows.map(({ a, d }) => {
@@ -121,9 +132,7 @@ export default async function AppHome() {
                 })}
               </ul>
             )}
-            <p className="mt-4 text-xs text-muted-foreground">
-              Documents are deleted once every party has downloaded them, and in any case after {agreementTtlDays()} days.
-            </p>
+            <p className="mt-4 text-xs text-muted-foreground">{t.inTransit.retention(agreementTtlDays())}</p>
           </CardContent>
         </Card>
       </main>

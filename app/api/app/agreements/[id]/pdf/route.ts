@@ -7,12 +7,14 @@ import { after } from "next/server";
 import { getAgreement, seatOf, markDownloaded, everyoneDownloaded, finishDelivery } from "@/lib/agreements";
 import { renderAgreementPdf } from "@/lib/pdf/render";
 import { requireSession } from "@/lib/app-request";
+import { pickLocale } from "@/lib/locale";
 
 export const maxDuration = 60;
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession();
   if (session instanceof NextResponse) return session;
+  const locale = pickLocale(req.headers.get("accept-language"), req.nextUrl.searchParams.get("lang"));
 
   const { id } = await params;
   const agreement = await getAgreement(id);
@@ -21,7 +23,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   let pdf: Buffer;
   try {
-    pdf = await renderAgreementPdf(agreement);
+    pdf = await renderAgreementPdf(agreement, locale);
   } catch (err) {
     console.error("[agreements pdf]", err instanceof Error ? err.message : err);
     return NextResponse.json({ error: "Could not render the document" }, { status: 500 });

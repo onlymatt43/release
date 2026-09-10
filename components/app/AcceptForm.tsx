@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import type { Contract } from "@/lib/contract";
 import ConsentChecklist, { allRequiredChecked } from "./ConsentChecklist";
+import { getAppDict } from "@/lib/app-i18n";
+import type { Locale } from "@/lib/locale";
 
-export default function AcceptForm({ agreementId, contract }: { agreementId: string; contract: Contract }) {
+export default function AcceptForm({ agreementId, contract, locale }: { agreementId: string; contract: Contract; locale: Locale }) {
   const router = useRouter();
+  const t = getAppDict(locale).agreement;
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,10 +50,10 @@ export default function AcceptForm({ agreementId, contract }: { agreementId: str
 
   return (
     <div className="flex flex-col gap-4">
-      <ConsentChecklist consents={contract.consents} checked={checked} onToggle={toggle} />
+      <ConsentChecklist consents={contract.consents} checked={checked} onToggle={toggle} locale={locale} />
       {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       <Button onClick={accept} disabled={!ready || busy} className="w-full">
-        {busy ? "Accepting…" : "Accept and sign"}
+        {busy ? t.accepting : t.accept}
       </Button>
     </div>
   );

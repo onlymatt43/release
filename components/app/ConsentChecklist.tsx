@@ -1,16 +1,20 @@
 "use client";
 
 import type { ContractConsent } from "@/lib/contract";
+import { getAppDict } from "@/lib/app-i18n";
+import type { Locale } from "@/lib/locale";
 
 interface Props {
   consents: ContractConsent[];
   checked: Set<string>;
   onToggle: (key: string, on: boolean) => void;
+  locale: Locale;
 }
 
 /** Checkboxes generated from the contract's own consent list. */
-export default function ConsentChecklist({ consents, checked, onToggle }: Props) {
+export default function ConsentChecklist({ consents, checked, onToggle, locale }: Props) {
   if (!consents.length) return null;
+  const requiredLabel = getAppDict(locale).request.required;
   return (
     <div className="flex flex-col gap-2">
       {consents.map((c) => (
@@ -23,7 +27,7 @@ export default function ConsentChecklist({ consents, checked, onToggle }: Props)
           />
           <span>
             {c.label}
-            {c.required ? " *" : ""}
+            {c.required ? ` (${requiredLabel})` : ""}
           </span>
         </label>
       ))}

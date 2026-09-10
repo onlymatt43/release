@@ -1,9 +1,9 @@
 {
   "messages": [
-    "Hey {handle}, t'as pas encore signé le consentement pour {title} ? T'as des questions ? {link}",
-    "Hey {handle}, t'as pas encore signé le consentement pour {title} ? T'as des questions ? {link}",
-    "Hey {handle}, t'as pas encore signé le consentement pour {title} ? T'as des questions ? {link}",
-    "Ok, rappel que je ne fais pas de collab si c'est pas signé. Btw, tu peux avoir le même consentement que moi, clique ici : {link}"
+    "Hey {handle}, you haven't signed the consent for {title} yet. Any questions? {link}",
+    "Hey {handle}, still haven't signed the consent for {title}. Anything unclear? {link}",
+    "Hey {handle}, a reminder about the consent for {title}. {link}",
+    "Okay, a reminder that I don't collab without a signed consent. Btw, you can get the same consent as me, click here: {link}"
   ],
   "intervalDays": 2
 }

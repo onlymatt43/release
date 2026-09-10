@@ -2,9 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { getAppDict } from "@/lib/app-i18n";
+import type { Locale } from "@/lib/locale";
 
-export default function SignOutButton() {
+export default function SignOutButton({ locale }: { locale: Locale }) {
   const router = useRouter();
+  const label = getAppDict(locale).signOut;
   return (
     <Button
       variant="outline"
@@ -14,7 +17,7 @@ export default function SignOutButton() {
         router.refresh();
       }}
     >
-      Sign out
+      {label}
     </Button>
   );
 }

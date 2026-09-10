@@ -1,18 +1,18 @@
-# Intégration du flux de transport (`/app`)
+# Transport flow integration (`/app`)
 
-`release` ne détient ni comptes, ni profils, ni documents. Il reçoit une
-identité vérifiée et un profil déjà rempli d'un **fournisseur d'identité**
-externe, fait circuler un accord entre les parties, génère le PDF final pour
-chacune, puis efface tout.
+`release` holds no accounts, no profiles, and no documents. It receives a
+verified identity and an already-filled profile from an external **identity
+provider**, moves an agreement between the parties, generates the final PDF
+for each of them, then deletes everything.
 
-Tout ce qui suit est réglé par variables d'environnement. Aucune valeur
-n'est écrite dans le code.
+Everything below is driven by environment variables. No value is written in
+code.
 
-## 1. Entrée d'un visiteur
+## 1. A visitor enters
 
-Le fournisseur envoie le visiteur vers `/app/enter`, de préférence en
-**POST** (formulaire auto-soumis ou JSON), pour que le jeton ne passe ni
-dans l'URL, ni dans l'historique, ni dans les logs :
+The provider sends the visitor to `/app/enter`, preferably by **POST** (an
+auto-submitted form or JSON) so the token stays out of URLs, browser history
+and request logs:
 
 ```
 POST {SITE_URL}/app/enter
@@ -21,43 +21,42 @@ Content-Type: application/x-www-form-urlencoded
 token=<JWT>&return_to=/app
 ```
 
-Le GET `…/app/enter?token=<JWT>&return_to=/app` est accepté pour un
-fournisseur qui ne peut que rediriger. Dans les deux cas, donnez au jeton
-une durée de vie très courte (une à deux minutes) : il est rejouable
-jusqu'à son expiration.
+`GET …/app/enter?token=<JWT>&return_to=/app` is accepted for a provider that
+can only redirect. In both cases, give the token a very short lifetime (one
+or two minutes): it is replayable until it expires.
 
-- `token` : JWT signé **HS256** avec `IDENTITY_JWT_SECRET`. Claims attendus :
+- `token`: a JWT signed **HS256** with `IDENTITY_JWT_SECRET`. Expected claims:
 
-  | claim    | obligatoire | contenu                                  |
-  | -------- | ----------- | ---------------------------------------- |
-  | `sub`    | oui         | identifiant stable du sujet (ex. id X)   |
-  | `handle` | oui         | handle public, avec ou sans `@`          |
-  | `name`   | non         | nom d'affichage                          |
-  | `avatar` | non         | URL d'avatar                             |
-  | `exp`    | oui         | expiration courte (quelques minutes)     |
-  | `iss`    | si configuré | doit égaler `IDENTITY_JWT_ISSUER`       |
-  | `aud`    | si configuré | doit égaler `IDENTITY_JWT_AUDIENCE`     |
+  | claim    | required     | content                                  |
+  | -------- | ------------ | ---------------------------------------- |
+  | `sub`    | yes          | stable subject id (e.g. an X user id)    |
+  | `handle` | yes          | public handle, with or without `@`       |
+  | `name`   | no           | display name                             |
+  | `avatar` | no           | avatar URL                               |
+  | `exp`    | yes          | short expiry (a few minutes)             |
+  | `iss`    | if configured | must equal `IDENTITY_JWT_ISSUER`        |
+  | `aud`    | if configured | must equal `IDENTITY_JWT_AUDIENCE`      |
 
-- `return_to` : chemin relatif sur `release` où continuer (par défaut `/app`).
+- `return_to`: a relative path on `release` to continue to (default `/app`).
 
-`release` ouvre une session (cookie signé, durée `SESSION_TTL_HOURS`,
-24 h par défaut) et redirige. Rien n'est écrit en base.
+`release` opens a session (a signed cookie, lifetime `SESSION_TTL_HOURS`,
+24h by default) and redirects. Nothing is written to the database.
 
-Un visiteur sans session voit un bouton « Continue with {IDENTITY_PROVIDER_NAME} »
-qui pointe vers `IDENTITY_LOGIN_URL?return_to=<URL absolue>`. Le fournisseur
-authentifie, puis renvoie vers `/app/enter` comme ci-dessus.
+A visitor without a session sees a "Continue with {IDENTITY_PROVIDER_NAME}"
+button pointing at `IDENTITY_LOGIN_URL?return_to=<absolute URL>`. The provider
+authenticates, then returns to `/app/enter` as above.
 
-## 2. Profil d'un sujet
+## 2. A subject's profile
 
-Quand un sujet crée ou accepte un accord, `release` appelle :
+When a subject creates or accepts an agreement, `release` calls:
 
 ```
-GET {IDENTITY_PROFILE_URL}        avec {id} et {handle} remplacés
+GET {IDENTITY_PROFILE_URL}        with {id} and {handle} substituted
 Authorization: Bearer {IDENTITY_SHARED_SECRET}
 Accept: application/json
 ```
 
-Réponse attendue (`200`) :
+Expected response (`200`):
 
 ```json
 {
@@ -83,95 +82,92 @@ Réponse attendue (`200`) :
 }
 ```
 
-- `release` affiche et imprime **exactement** ces sections, dans cet ordre.
-  Il ne connaît aucun nom de champ. Ajouter, retirer ou renommer un champ
-  côté fournisseur ne demande aucun changement ici.
-- `src` : URI `data:` ou URL absolue. Seules les URL sur l'origine de
-  `IDENTITY_PROFILE_URL` (appelées avec le même bearer) ou sur une origine
-  listée dans `IDENTITY_IMAGE_ORIGINS` sont récupérées ; toute autre URL est
-  ignorée et le document affiche « Image unavailable ». Taille maximale par
-  image : `PROFILE_IMAGE_MAX_BYTES` (5 Mo par défaut). Les URI `data:` sont
-  le choix le plus sûr : rien n'expire, rien n'est refusé.
-- `404` signifie « pas de profil ». Le profil est **obligatoire** pour
-  utiliser `/app` : toute page redirige alors immédiatement vers
-  `IDENTITY_PROFILE_SETUP_URL?return_to=<URL absolue>`. Une fois le profil
-  rempli, le fournisseur renvoie la personne sur `return_to` (la session
-  `release` est encore valide, pas besoin de repasser par `/app/enter`).
-  Sans `IDENTITY_PROFILE_SETUP_URL`, la personne voit un écran bloquant.
+- `release` shows and prints **exactly** these sections, in this order. It
+  knows no field name. Adding, removing or renaming a field on the provider
+  side needs no change here.
+- `src`: a `data:` URI or an absolute URL. Only URLs on the origin of
+  `IDENTITY_PROFILE_URL` (fetched with the same bearer) or on an origin listed
+  in `IDENTITY_IMAGE_ORIGINS` are fetched; any other URL is ignored and the
+  document shows "Image unavailable". Maximum size per image:
+  `PROFILE_IMAGE_MAX_BYTES` (5 MB by default). `data:` URIs are the safest
+  choice: nothing expires, nothing is refused.
+- `404` means "no profile". A profile is **mandatory** to use `/app`: every
+  page then redirects immediately to
+  `IDENTITY_PROFILE_SETUP_URL?return_to=<absolute URL>`. Once the profile is
+  filled in, the provider returns the person to `return_to` (the `release`
+  session is still valid, no need to go back through `/app/enter`). Without
+  `IDENTITY_PROFILE_SETUP_URL`, the person sees a blocking screen.
 
-## 2b. Résolution d'un handle (recommandé)
+## 2b. Handle resolution (recommended)
 
-Si `IDENTITY_RESOLVE_URL` est configuré, `release` l'appelle au moment de
-la demande pour chaque handle invité :
+If `IDENTITY_RESOLVE_URL` is configured, `release` calls it at request time
+for each invited handle:
 
 ```
-GET {IDENTITY_RESOLVE_URL}        avec {handle} remplacé
+GET {IDENTITY_RESOLVE_URL}        with {handle} substituted
 Authorization: Bearer {IDENTITY_SHARED_SECRET}
 ```
 
-Réponse `200` : `{ "id": "456", "handle": "bob", "name": "…", "avatar": "…" }`.
-Réponse `404` : aucun compte, la demande est refusée.
+`200`: `{ "id": "456", "handle": "bob", "name": "…", "avatar": "…" }`.
+`404`: no account, the request is refused.
 
-L'invitation est alors liée à l'**identifiant** du compte : la personne
-peut changer de handle et rejoindre quand même, et quelqu'un qui
-récupérerait l'ancien handle ne le peut pas. Sans cette URL, l'invitation
-est liée au handle seul.
+The invitation is then bound to the account **id**: the person can change
+their handle and still join, and whoever later picks up the old handle cannot.
+Without this URL, the invitation is bound to the handle alone.
 
-## 3. Contrat
+## 3. Contract
 
-Le texte du contrat vient de `CONTRACT_URL` (JSON) ou de `CONTRACT_JSON`
-(inline). Voir `config/contract.example.json`. Il est **figé dans l'accord au
-moment de la demande** : ce que les parties acceptent est ce que le PDF montre.
+The contract text comes from `CONTRACT_URL` (JSON) or `CONTRACT_JSON`
+(inline). See `config/contract.example.json`. It is **frozen into the
+agreement at request time**: what the parties accept is what the PDF shows.
 
-Les cases à cocher sont générées depuis `consents`; `required` vaut `true`
-par défaut.
+The checkboxes are generated from `consents`; `required` defaults to `true`.
 
-## 4. Cycle de vie d'un accord
+## 4. Agreement lifecycle
 
-Chaque siège **signe** ou **reçoit seulement**. A choisit à la demande :
-« I sign » et « They sign », les deux cochés par défaut. Décocher l'un donne
-un accord à sens unique, pour quelqu'un qui a déjà sa propre lettre de
-consentement ou à qui l'on accorde le sien. Au moins un siège doit signer.
+Each seat either **signs** or **only receives**. The requester chooses at
+request time ("I sign" / "They sign", both on by default). Turning one off
+makes a one-sided agreement, for someone who already holds their own consent
+letter or is being granted one. At least one seat must sign.
 
-1. A, connecté, saisit le handle de B (ou plusieurs). Si A signe, son profil
-   est récupéré et figé. L'accord est `pending`, ou `sealed` tout de suite si
-   personne d'autre ne signe.
-2. B ouvre `/app/a/{id}` (ou le voit dans « In transit » à sa connexion).
-   S'il signe : il coche les consentements et accepte ; son profil est
-   récupéré et figé. Quand tous les sièges signataires ont accepté :
-   `sealed`. S'il ne signe pas, il n'a rien à faire d'autre que télécharger.
-3. Chaque partie télécharge `/api/app/agreements/{id}/pdf`.
-4. Dès que toutes les parties ont téléchargé, l'accord est **supprimé**,
-   immédiatement ou à la fin de la fenêtre `AGREEMENT_DELIVERY_GRACE_MINUTES`
-   si elle est configurée (pour permettre de reprendre un téléchargement
-   interrompu). Sinon, tout accord dont `expires_at` est passé
-   (`AGREEMENT_TTL_DAYS`, 7 par défaut) est supprimé au premier accès, et
-   au plus tard par le cron quotidien `/api/cron/purge` (`vercel.json`).
+1. The requester, signed in, enters the other party's handle (or several). If
+   the requester signs, their profile is fetched and frozen. The agreement is
+   `pending`, or `sealed` at once if nobody else signs.
+2. The other party opens `/app/a/{id}` (or sees it under "In transit" on
+   sign-in). If they sign: they tick the consents and accept; their profile is
+   fetched and frozen. Once every signing seat has accepted: `sealed`. If they
+   only receive, they have nothing to do but download.
+3. Each party downloads `/api/app/agreements/{id}/pdf`.
+4. Once every party has downloaded, the agreement is **deleted**, immediately
+   or at the end of the `AGREEMENT_DELIVERY_GRACE_MINUTES` window if one is
+   configured (to allow retrying a broken download). Otherwise any agreement
+   past `expires_at` (`AGREEMENT_TTL_DAYS`, 7 by default) is deleted on first
+   access, and at the latest by the daily cron `/api/cron/purge`
+   (`vercel.json`).
 
-Un compte ne peut avoir que `AGREEMENT_MAX_IN_TRANSIT` demandes en cours
-à la fois (10 par défaut).
+One account may hold at most `AGREEMENT_MAX_IN_TRANSIT` in-transit requests at
+a time (10 by default).
 
-Aucune notification n'est envoyée par `release`.
+`release` sends no notification of its own.
 
-## 4b. Rappels
+## 4b. Reminders
 
-Les rappels à un siège qui n'a pas signé sont **optionnels** et n'existent
-que si `REMINDER_URL` ou `REMINDER_JSON` est configuré (forme dans
-`config/reminders.example.json`). Le n-ième rappel utilise le n-ième
-message ; après le dernier, plus rien. Placeholders : `{handle}` (le
-signataire), `{from}` (le demandeur), `{title}`, `{link}` (page de l'accord).
+Reminders to a seat that has not signed are **optional** and exist only if
+`REMINDER_URL` or `REMINDER_JSON` is configured (shape in
+`config/reminders.example.json`). The n-th reminder uses the n-th message;
+after the last one, nothing more. Placeholders: `{handle}` (the signer),
+`{from}` (the requester), `{title}`, `{link}` (the agreement page).
 
-Deux canaux, tous deux hors de `release` :
+Two channels, both outside `release`:
 
-- **Manuel.** Sur la page de l'accord, le demandeur clique « Remind @b ».
-  `release` compte le rappel et ouvre `IDENTITY_COMPOSE_URL` avec le texte
-  pré-rempli (par ex. le compositeur de DM de X, avec `{id}` = identifiant
-  du destinataire). Sans `IDENTITY_COMPOSE_URL`, le texte est copié dans le
-  presse-papiers.
-- **Automatique.** Si `IDENTITY_NOTIFY_URL` est configuré, la demande
-  propose « Send them reminders automatically ». Le cron quotidien
-  `/api/cron/remind` envoie alors chaque rappel dû (`intervalDays` depuis la
-  demande ou le rappel précédent) en appelant :
+- **Manual.** On the agreement page, the requester clicks "Remind @b".
+  `release` counts the reminder and opens `IDENTITY_COMPOSE_URL` with the
+  pre-filled text (e.g. X's DM composer, with `{id}` = the recipient's id).
+  Without `IDENTITY_COMPOSE_URL`, the text is copied to the clipboard.
+- **Automatic.** If `IDENTITY_NOTIFY_URL` is configured, the request offers
+  "Send them reminders automatically". The daily cron `/api/cron/remind` then
+  sends each due reminder (`intervalDays` since the request or the previous
+  reminder) by calling:
 
   ```
   POST {IDENTITY_NOTIFY_URL}
@@ -181,9 +177,17 @@ Deux canaux, tous deux hors de `release` :
   { "to": { "id": "456", "handle": "bob" }, "text": "…", "agreementId": "…" }
   ```
 
-  Toute réponse non-2xx est comptée comme un échec ; le rappel sera retenté
-  au prochain passage.
+  Any non-2xx response counts as a failure; the reminder is retried on the
+  next run.
 
-## 5. Variables d'environnement
+## 5. Language
 
-Voir `.env.example`, section « Transport flow ».
+The `/app` pages render in the visitor's browser language (Accept-Language, or
+an explicit `?lang=` override), among the locales in `lib/locale.ts`. The
+downloaded PDF's own labels follow the same rule, using the downloader's
+browser language. Operator content — the contract text and the reminder
+messages — stays in whatever language the operator wrote it in.
+
+## 6. Environment variables
+
+See `.env.example`, the "Transport flow" section.

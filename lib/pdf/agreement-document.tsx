@@ -3,6 +3,7 @@
 
 import { Document, Page, Text, View, Image as PdfImage, StyleSheet } from "@react-pdf/renderer";
 import type { Agreement, Party } from "@/lib/agreements";
+import type { AppDict } from "@/lib/app-i18n";
 import type { ResolvedImage } from "./images";
 
 export interface RenderedParty {
@@ -16,6 +17,7 @@ export interface AgreementDocumentProps {
   parties: RenderedParty[];
   brand: string | null;
   formatDateTime: (iso: string) => string;
+  t: AppDict["pdf"];
 }
 
 const styles = StyleSheet.create({
@@ -52,10 +54,11 @@ const styles = StyleSheet.create({
   },
 });
 
-function PartyBlock({ rendered, agreement, formatDateTime }: {
+function PartyBlock({ rendered, agreement, formatDateTime, t }: {
   rendered: RenderedParty;
   agreement: Agreement;
   formatDateTime: (iso: string) => string;
+  t: AppDict["pdf"];
 }) {
   const { party, images, signature } = rendered;
   const s = party.subject;
@@ -101,7 +104,7 @@ function PartyBlock({ rendered, agreement, formatDateTime }: {
 
       {agreement.contract.consents.length > 0 && (
         <View style={styles.section} wrap={false}>
-          <Text style={styles.sectionTitle}>Consents</Text>
+          <Text style={styles.sectionTitle}>{t.consents}</Text>
           {agreement.contract.consents.map((c) => (
             <View key={c.key} style={styles.consent}>
               <View style={[styles.box, ...(accepted.has(c.key) ? [styles.boxOn] : [])]} />
@@ -112,21 +115,21 @@ function PartyBlock({ rendered, agreement, formatDateTime }: {
       )}
 
       <View style={styles.section} wrap={false}>
-        <Text style={styles.sectionTitle}>Electronic acceptance</Text>
+        <Text style={styles.sectionTitle}>{t.acceptance}</Text>
         {signature ? (
           <PdfImage style={styles.signature} src={{ data: signature.data, format: signature.format }} />
         ) : null}
-        <Text style={styles.meta}>Accepted on {formatDateTime(party.acceptedAt)}</Text>
-        {party.ipAddress ? <Text style={styles.meta}>IP {party.ipAddress}</Text> : null}
+        <Text style={styles.meta}>{t.acceptedOn(formatDateTime(party.acceptedAt))}</Text>
+        {party.ipAddress ? <Text style={styles.meta}>{t.ip} {party.ipAddress}</Text> : null}
         {party.userAgent ? <Text style={styles.meta}>{party.userAgent}</Text> : null}
       </View>
     </View>
   );
 }
 
-export function AgreementDocument({ agreement, parties, brand, formatDateTime }: AgreementDocumentProps) {
+export function AgreementDocument({ agreement, parties, brand, formatDateTime, t }: AgreementDocumentProps) {
   const seats = agreement.invited
-    .map((i) => `@${i.handle}${i.signs ? "" : " (receives a copy)"}`)
+    .map((i) => `@${i.handle}${i.signs ? "" : ` (${t.receivesCopy})`}`)
     .join(" · ");
   return (
     <Document title={agreement.contract.title} author={brand ?? undefined}>
@@ -135,19 +138,19 @@ export function AgreementDocument({ agreement, parties, brand, formatDateTime }:
           {brand ? <Text style={styles.brand}>{brand}</Text> : null}
           <Text style={styles.title}>{agreement.contract.title}</Text>
           {agreement.title ? <Text style={styles.meta}>{agreement.title}</Text> : null}
-          <Text style={styles.meta}>Parties: {seats}</Text>
-          {agreement.sealedAt ? <Text style={styles.meta}>Sealed on {formatDateTime(agreement.sealedAt)}</Text> : null}
+          <Text style={styles.meta}>{t.parties}: {seats}</Text>
+          {agreement.sealedAt ? <Text style={styles.meta}>{t.sealedOn(formatDateTime(agreement.sealedAt))}</Text> : null}
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Contract</Text>
+          <Text style={styles.sectionTitle}>{t.contract}</Text>
           {agreement.contract.paragraphs.map((p, i) => (
             <Text key={i} style={styles.paragraph}>{p}</Text>
           ))}
         </View>
 
         {parties.map((rp) => (
-          <PartyBlock key={rp.party.subject.id} rendered={rp} agreement={agreement} formatDateTime={formatDateTime} />
+          <PartyBlock key={rp.party.subject.id} rendered={rp} agreement={agreement} formatDateTime={formatDateTime} t={t} />
         ))}
 
         <View style={styles.footer} fixed>

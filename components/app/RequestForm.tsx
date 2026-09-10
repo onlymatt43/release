@@ -9,9 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import type { Contract } from "@/lib/contract";
 import ConsentChecklist, { allRequiredChecked } from "./ConsentChecklist";
 import ContractText from "./ContractText";
+import { getAppDict } from "@/lib/app-i18n";
+import type { Locale } from "@/lib/locale";
 
-export default function RequestForm({ contract, canAutoRemind }: { contract: Contract; canAutoRemind: boolean }) {
+export default function RequestForm({ contract, canAutoRemind, locale }: { contract: Contract; canAutoRemind: boolean; locale: Locale }) {
   const router = useRouter();
+  const t = getAppDict(locale).request;
   const [handle, setHandle] = useState("");
   const [title, setTitle] = useState("");
   const [iSign, setISign] = useState(true);
@@ -70,56 +73,56 @@ export default function RequestForm({ contract, canAutoRemind }: { contract: Con
       <CardContent>
         <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
           <div className="flex flex-col gap-1">
-            <Label htmlFor="req-handle">Their handle *</Label>
+            <Label htmlFor="req-handle">{t.theirHandle} *</Label>
             <Input
               id="req-handle"
               value={handle}
               onChange={(e) => setHandle(e.target.value)}
-              placeholder="@handle"
+              placeholder={t.handlePlaceholder}
               autoCapitalize="none"
               autoCorrect="off"
               required
             />
           </div>
           <div className="flex flex-col gap-1">
-            <Label htmlFor="req-title">Reference (optional)</Label>
+            <Label htmlFor="req-title">{t.reference}</Label>
             <Input
               id="req-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Shoot name, date, anything useful"
+              placeholder={t.referencePlaceholder}
             />
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>Who signs</Label>
+            <Label>{t.whoSigns}</Label>
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary" checked={iSign} onChange={(e) => setISign(e.target.checked)} />
-              <span>I sign</span>
+              <span>{t.iSign}</span>
             </label>
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary" checked={theySign} onChange={(e) => setTheySign(e.target.checked)} />
-              <span>They sign</span>
+              <span>{t.theySign}</span>
             </label>
-            {!iSign && !theySign && <p className="text-xs text-destructive">At least one side must sign.</p>}
-            {!iSign && theySign && <p className="text-xs text-muted-foreground">You will receive their signed document without signing yourself.</p>}
-            {iSign && !theySign && <p className="text-xs text-muted-foreground">They will receive your signed document without signing themselves.</p>}
+            {!iSign && !theySign && <p className="text-xs text-destructive">{t.atLeastOne}</p>}
+            {!iSign && theySign && <p className="text-xs text-muted-foreground">{t.onlyTheySign}</p>}
+            {iSign && !theySign && <p className="text-xs text-muted-foreground">{t.onlyISign}</p>}
           </div>
 
           {canAutoRemind && theySign && (
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary" checked={autoRemind} onChange={(e) => setAutoRemind(e.target.checked)} />
-              <span>Send them reminders automatically until they sign</span>
+              <span>{t.autoRemind}</span>
             </label>
           )}
 
           <ContractText contract={contract} />
-          {iSign && <ConsentChecklist consents={contract.consents} checked={checked} onToggle={toggle} />}
+          {iSign && <ConsentChecklist consents={contract.consents} checked={checked} onToggle={toggle} locale={locale} />}
 
           {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 
           <Button type="submit" disabled={!ready || busy} className="w-full">
-            {busy ? "Sending…" : "Send request"}
+            {busy ? t.submitting : t.submit}
           </Button>
         </form>
       </CardContent>
