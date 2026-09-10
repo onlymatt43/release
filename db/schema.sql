@@ -51,3 +51,38 @@ CREATE TABLE IF NOT EXISTS participations (
 
 CREATE INDEX IF NOT EXISTS idx_participations_contact ON participations(contact_id);
 CREATE INDEX IF NOT EXISTS idx_participations_shoot   ON participations(shoot_id);
+
+-- ===========================================================
+-- Transport flow: agreements exist only while in transit.
+-- Rows are hard-deleted once every party has downloaded the
+-- sealed document, or when expires_at passes (cron purge).
+-- ===========================================================
+
+CREATE TABLE IF NOT EXISTS agreements (
+  id              TEXT PRIMARY KEY,
+  contract_json   TEXT NOT NULL,             -- contract frozen at creation
+  title           TEXT,
+  status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sealed')),
+  invited_handles TEXT NOT NULL,             -- JSON array of handles expected to join
+  created_at      TEXT NOT NULL,
+  sealed_at       TEXT,
+  expires_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_agreements_expires ON agreements(expires_at);
+
+CREATE TABLE IF NOT EXISTS agreement_parties (
+  agreement_id  TEXT NOT NULL REFERENCES agreements(id) ON DELETE CASCADE,
+  subject_id    TEXT NOT NULL,               -- provider subject id
+  handle        TEXT NOT NULL,
+  subject_json  TEXT NOT NULL,               -- identity as asserted by the provider
+  profile_json  TEXT NOT NULL,               -- profile snapshot at acceptance
+  consents_json TEXT NOT NULL,               -- JSON array of accepted consent keys
+  accepted_at   TEXT NOT NULL,
+  ip_address    TEXT,
+  user_agent    TEXT,
+  downloaded_at TEXT,
+  PRIMARY KEY (agreement_id, subject_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agreement_parties_subject ON agreement_parties(subject_id);

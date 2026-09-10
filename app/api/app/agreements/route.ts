@@ -1,0 +1,48 @@
+// Create an agreement: the requester's own profile is fetched from the
+// identity provider and frozen in; the other handles are invited.
+
+import { NextResponse, type NextRequest } from "next/server";
+import { getIdentityProvider, IdentityError, normalizeHandle } from "@/lib/identity";
+import { loadContract, ContractError } from "@/lib/contract";
+import { createAgreement } from "@/lib/agreements";
+import { requireSession, clientInfo, checkConsents } from "@/lib/app-request";
+
+export async function POST(req: NextRequest) {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+
+  let body: Record<string, unknown>;
+  try { body = (await req.json()) as Record<string, unknown>; }
+  catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }
+
+  const rawHandles = Array.isArray(body.handles) ? body.handles : [body.handle];
+  const handles = Array.from(new Set(
+    rawHandles.filter((h): h is string => typeof h === "string").map(normalizeHandle).filter(Boolean)
+  ));
+  if (!handles.length) return NextResponse.json({ error: "At least one handle is required" }, { status: 422 });
+  if (handles.includes(session.handle)) return NextResponse.json({ error: "You cannot invite yourself" }, { status: 422 });
+
+  const title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : null;
+
+  try {
+    const contract = await loadContract();
+    const consents = checkConsents(contract, body.consents);
+    if (!consents.ok) return NextResponse.json({ error: `Consent "${consents.missing}" is required` }, { status: 422 });
+
+    const profile = await getIdentityProvider().getProfile(session);
+    const agreement = await createAgreement({
+      contract,
+      title,
+      invitedHandles: handles,
+      requester: { subject: session, profile, consents: consents.keys, ...clientInfo(req) },
+    });
+    return NextResponse.json({ id: agreement.id }, { status: 201 });
+  } catch (err) {
+    if (err instanceof IdentityError || err instanceof ContractError) {
+      const status = err instanceof IdentityError ? err.status : 500;
+      return NextResponse.json({ error: err.message }, { status });
+    }
+    console.error("[agreements POST]", err instanceof Error ? err.message : err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}

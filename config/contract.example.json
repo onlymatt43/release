@@ -1,0 +1,15 @@
+{
+  "title": "Model Release",
+  "paragraphs": [
+    "By accepting this document, each undersigned party (hereinafter \"the Model\") irrevocably authorizes the other party (hereinafter \"the Producer\") and their successors, assignees, and licensees to use, reproduce, modify, distribute, publish, and license the photographic and audiovisual works created during the session covered by this document.",
+    "This authorization specifically includes commercial exploitation and distribution on any digital content platform, social networks, or adult platforms, as well as any other digital or physical medium, present or future, without geographical or temporal restriction. The Model acknowledges that this assignment is granted definitively and does not entitle them to any subsequent compensation, royalties, or approval rights over the use of the material.",
+    "The Model certifies under penalty of perjury that they are at least 18 years of age at the date of the session and have full legal capacity; that the identification documents provided are authentic, valid, and accurately represent them; that they are acting freely, in an informed manner, without constraint, threat, or impairment by any substance; and that they have read, understood, and accepted this contract in its entirety before affixing their electronic signature.",
+    "In accordance with international legal requirements applicable to adult content production (notably standards such as 18 U.S.C. § 2257 and equivalent record-keeping laws), each party keeps its own copy of this document, including the identity information, signatures, and verification documents it contains, in a strictly confidential and secure manner for the minimum duration required by law.",
+    "This authorization is final, irrevocable, exclusive, and transferable. The Model expressly waives any claim, lawsuit, or recourse related to the use, modification, or publication of the works within the scope provided herein."
+  ],
+  "consents": [
+    { "key": "recording", "label": "I authorize the recording of my participation.", "required": true },
+    { "key": "publication", "label": "I authorize the publication of the content on the specified platforms.", "required": true },
+    { "key": "adult", "label": "I certify that I am of legal age (18+) and consent freely and without constraint.", "required": true }
+  ]
+}
