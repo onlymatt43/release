@@ -19,10 +19,15 @@ Le dépôt contient deux applications :
 La base Turso `release` ne contient que `agreements` et `agreement_parties`.
 Les trois autres tables n'y ont jamais été créées.
 
-Ce plan propose de retirer l'ancien flux (déduction : garder du code qui
-stocke des pièces d'identité contredit la phrase de l'auteur), de corriger
-les textes qui le décrivent, et d'écrire la phrase de l'auteur là où les
-sessions suivantes la liront. Un commit par phase, `npm run lint`,
+L'auteur a confirmé le 2026-09-10 que **l'admin reste**. Il n'a pas dit à
+quoi il servira ; c'est à lui de le définir, pas à l'agent de le deviner.
+
+Ce plan propose de retirer le stockage permanent (formulaire `/consent`,
+pages `/signed`, R2, tables `shoots`/`contacts`/`participations`), de garder
+l'infrastructure admin en la déconnectant de ces tables, de corriger les
+textes, et d'écrire la phrase de l'auteur là où les sessions suivantes la
+liront. Le retrait du stockage permanent est une déduction (il stocke des
+pièces d'identité sans date de suppression) ; l'auteur peut la rayer. Un commit par phase, `npm run lint`,
 `npx tsc --noEmit` et `npm run build` verts avant chaque commit. Ne pas
 sauter de phase, ne pas fusionner deux phases dans un commit.
 
@@ -42,44 +47,72 @@ s'arrêter et le signaler : ce n'est pas l'état attendu.
 
 ---
 
-## Phase 1 : retirer l'ancien flux
+## Phase 1 : retirer le stockage permanent, garder l'admin
 
 ### 1.1 Supprimer ces fichiers et dossiers, exactement ceux-ci
 
 ```
-app/admin/
-app/api/admin/
-app/api/consent/
 app/consent/
 app/signed/
-components/admin/
+app/api/consent/
+app/admin/contacts/
+app/admin/shoots/
+app/admin/participations/
+app/api/admin/shoots/
 components/AddressAutocomplete.tsx
 components/ConsentForm.tsx
 components/FileUploadZone.tsx
 components/SignaturePad.tsx
-components/ui/dialog.tsx
-components/ui/separator.tsx
-components/ui/table.tsx
+components/admin/NewShootForm.tsx
+components/admin/PrintButton.tsx
+components/admin/QRCodePanel.tsx
+components/admin/QuickConsentLink.tsx
+components/admin/ShootCard.tsx
 lib/r2.ts
 lib/types.ts
-middleware.ts
 CORS-R2-SETUP.md
 ```
 
 Justification, pour vérification :
 
-- `app/admin`, `app/api/admin`, `app/api/consent`, `app/consent`,
-  `app/signed`, `components/admin`, les quatre composants racine, `lib/r2.ts`
-  et `lib/types.ts` ne sont importés par rien d'autre que l'ancien flux.
-- `components/ui/dialog.tsx`, `separator.tsx`, `table.tsx` ne sont importés
-  par aucun fichier du flux `/app`. `dialog.tsx` est le seul consommateur de
-  `lucide-react`.
-- `middleware.ts` ne protège que `/admin` et `/api/admin`.
+- `app/consent`, `app/signed`, `app/api/consent` : le formulaire qui
+  téléverse des pièces d'identité vers R2 et les pages qui les relisent.
+- `app/admin/contacts`, `shoots`, `participations`, `app/api/admin/shoots`
+  et les cinq composants admin listés : lisent `shoots`, `contacts`,
+  `participations` ou R2. Ils n'ont plus de source de données.
+- `lib/r2.ts`, `lib/types.ts` : n'existent que pour ces tables et ce bucket.
 - `CORS-R2-SETUP.md` documente le bucket R2.
 
-Ne pas supprimer : `components/ui/badge.tsx`, `button.tsx`, `card.tsx`,
-`input.tsx`, `label.tsx` (utilisés par `/app`), `lib/locale.ts` (utilisé par
-`/privacy` et `/terms`), `lib/utils.ts`, `config/contract.example.json`.
+### 1.1b Garder, exactement ceci
+
+```
+app/admin/page.tsx              (à réécrire, voir 1.1c)
+app/admin/login/page.tsx
+app/api/admin/auth/login/route.ts
+app/api/admin/auth/logout/route.ts
+components/admin/LoginForm.tsx
+components/admin/LogoutButton.tsx
+middleware.ts
+ADMIN_SECRET dans .env.example
+```
+
+Avant de supprimer `components/ui/dialog.tsx`, `separator.tsx`,
+`table.tsx`, vérifier avec `grep -rl "components/ui/<nom>\"" app components`
+qu'aucun fichier conservé ne les importe. Ne les supprimer que si le grep
+est vide. `dialog.tsx` est le seul consommateur de `lucide-react` ; si
+`dialog.tsx` reste, `lucide-react` reste aussi.
+
+Ne pas supprimer non plus : `components/ui/badge.tsx`, `button.tsx`,
+`card.tsx`, `input.tsx`, `label.tsx`, `lib/locale.ts`, `lib/utils.ts`,
+`config/contract.example.json`.
+
+### 1.1c `app/admin/page.tsx`
+
+La page actuelle lit `shoots` et `participations`. La remplacer par une page
+minimale qui compile : titre, `LogoutButton`, et rien d'autre. **Ce que
+l'admin doit montrer est à définir par l'auteur** ; ne rien inventer. Laisser
+un commentaire en tête du fichier : « Contenu à définir par l'auteur ».
+Vérifier que `middleware.ts` protège toujours `/admin` et `/api/admin`.
 
 ### 1.2 `app/page.tsx`
 
@@ -124,7 +157,6 @@ Supprimer les sections et variables suivantes :
 
 - section « File storage (required) » : `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`,
   `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` ;
-- section « Admin access (required) » : `ADMIN_SECRET` ;
 - section « Optional integrations » : `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`,
   `CONSENT_WEBHOOK_URL` ;
 - dans « Site identity » : `SITE_PLATFORM_EXAMPLES` et son commentaire.
@@ -136,8 +168,9 @@ Corriger les commentaires de `SITE_LOCALE` et `SITE_TIMEZONE` qui parlent de
 
 Retirer des `dependencies` : `@aws-sdk/client-s3`,
 `@aws-sdk/s3-request-presigner`, `@googlemaps/js-api-loader`,
-`browser-image-compression`, `react-qr-code`, `react-signature-canvas`,
-`lucide-react`. Retirer des `devDependencies` :
+`browser-image-compression`, `react-qr-code`, `react-signature-canvas`.
+Retirer `lucide-react` seulement si `components/ui/dialog.tsx` a été
+supprimé en 1.1b. Retirer des `devDependencies` :
 `@types/react-signature-canvas`. Renommer `"name"` en `"release"`.
 Puis `npm install` pour régénérer `package-lock.json`. Ne pas éditer le
 lockfile à la main.
@@ -164,11 +197,11 @@ Réécrire entièrement. Contenu attendu, sans autre affirmation :
 ### 1.9 Vérification de la phase
 
 ```
-grep -rn "R2_\|lib/r2\|lib/types\|ADMIN_SECRET\|GOOGLE_MAPS\|CONSENT_WEBHOOK\|shoots\|participations" app components lib db .env.example README.md
+grep -rn "R2_\|lib/r2\|lib/types\|GOOGLE_MAPS\|CONSENT_WEBHOOK\|shoots\|participations" app components lib db .env.example README.md
 ```
 
 Doit ne rien renvoyer. Puis `npx tsc --noEmit && npm run lint && npm run build`
-verts. Commit : « Remove the legacy consent-form flow ».
+verts. Commit : « Remove the permanent-storage consent flow, keep the admin shell ».
 
 ---
 
@@ -206,8 +239,9 @@ promettre d'autre.
   aucun et ne peut pas le régénérer après suppression.
 - Contact : `SITE_CONTACT_EMAIL` si défini.
 
-Ne pas mentionner : Cloudflare R2, espace d'administration, conservation
-« pour la durée minimale exigée par la loi », 18 U.S.C. § 2257.
+Ne pas mentionner : Cloudflare R2, conservation « pour la durée minimale
+exigée par la loi », 18 U.S.C. § 2257. Ne rien écrire sur l'admin tant que
+l'auteur n'a pas dit ce qu'il montre.
 
 ### 2.2 `/terms`, faits à énoncer
 
@@ -221,12 +255,12 @@ Ne pas mentionner : Cloudflare R2, espace d'administration, conservation
   conservation incombe à la partie.
 - Contact : `SITE_CONTACT_EMAIL` si défini.
 
-Ne pas mentionner : espace d'administration, liens signés, documents
-consultables.
+Ne pas mentionner : liens signés, documents consultables. Ne rien écrire
+sur l'admin tant que l'auteur n'a pas dit ce qu'il montre.
 
 ### 2.3 Vérification
 
-`grep -n "R2\|Cloudflare\|admin\|2257" app/privacy/page.tsx app/terms/page.tsx`
+`grep -n "R2\|Cloudflare\|2257" app/privacy/page.tsx app/terms/page.tsx`
 ne renvoie rien. Build vert. Commit : « Rewrite privacy and terms for the
 transit-only flow ».
 
@@ -269,10 +303,9 @@ Script Node sans dépendance qui échoue (code 1, message explicite) si :
 - `package.json` contient une des dépendances retirées en 1.7 ;
 - `db/schema.sql` contient `CREATE TABLE` pour autre chose que `agreements`
   et `agreement_parties` ;
-- `.env.example` contient `R2_`, `ADMIN_SECRET`, `GOOGLE_MAPS`,
-  `CONSENT_WEBHOOK` ;
-- `app/privacy/page.tsx` ou `app/terms/page.tsx` contient `R2`,
-  `Cloudflare` ou `admin`.
+- `.env.example` contient `R2_`, `GOOGLE_MAPS`, `CONSENT_WEBHOOK` ;
+- `app/privacy/page.tsx` ou `app/terms/page.tsx` contient `R2` ou
+  `Cloudflare`.
 
 Ajouter dans `package.json` : `"check:invariants": "node scripts/check-invariants.mjs"`
 et faire précéder le lint : `"lint": "npm run check:invariants && eslint"`.
@@ -369,7 +402,7 @@ review findings ».
 - Turso conserve un historique de restauration ponctuelle indépendant des
   `DELETE`. Régler la rétention de la base `release` au minimum dans le
   tableau de bord Turso, sinon les `profile_json` survivent à la suppression.
-- Sur Vercel, projet `release` : retirer les variables `R2_*`, `ADMIN_SECRET`,
+- Sur Vercel, projet `release` : retirer les variables `R2_*`,
   `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `CONSENT_WEBHOOK_URL`,
   `SITE_PLATFORM_EXAMPLES` si elles existent. Vérifier que
   `TURSO_DATABASE_URL` pointe sur `libsql://release-onlymatt43.aws-us-east-2.turso.io`.
@@ -380,8 +413,9 @@ review findings ».
 
 ## Critères de fin
 
-- `git ls-files | grep -c "admin\|consent\|signed\|r2"` renvoie 0.
+- `git ls-files | grep -c "consent\|signed\|r2\|shoots\|participations"` renvoie 0.
+- `app/admin/login`, `app/api/admin/auth`, `middleware.ts` existent encore.
 - `npm run lint`, `npx tsc --noEmit`, `npm run build` verts.
-- `/privacy` et `/terms` ne contiennent ni R2, ni admin, ni durée légale.
+- `/privacy` et `/terms` ne contiennent ni R2, ni durée légale.
 - `db/schema.sql` ne crée que deux tables.
 - `AGENTS.md` contient les invariants et le script les vérifie.
