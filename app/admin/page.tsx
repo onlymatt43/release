@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { resolveBaseUrl, siteLocale } from "@/lib/site-config";
 import { Button } from "@/components/ui/button";
 import ShootCard from "@/components/admin/ShootCard";
+import QuickConsentLink from "@/components/admin/QuickConsentLink";
 import LogoutButton from "@/components/admin/LogoutButton";
 import type { Shoot } from "@/lib/types";
 
@@ -40,6 +41,10 @@ export default async function AdminPage() {
       </header>
 
       <main className="mx-auto max-w-5xl p-6">
+        <div className="mb-6">
+          <QuickConsentLink baseUrl={baseUrl} />
+        </div>
+
         {shoots.length === 0 ? (
           <div className="rounded-lg border border-dashed p-12 text-center">
             <p className="text-muted-foreground">
