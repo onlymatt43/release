@@ -343,6 +343,14 @@ Toutes petites, un seul commit. Lignes valables au moment de la rédaction.
     `INSERT OR IGNORE` absorbe alors le second.
 17. `app/app/page.tsx`, `describe` : ne renvoyer « Ready to download » que
     si `partyOf(a, me)` n'est pas null ; sinon « Closed ».
+18. `lib/identity/types.ts`, `parseIdentity` : lire `sub` avant `id`
+    (`asString(o.sub) ?? asString(o.id)`). `docs/INTEGRATION.md` définit
+    `sub` comme identifiant du jeton d'entrée ; un jeton portant aussi un
+    `id` différent donnerait une session avec le mauvais identifiant.
+19. `lib/pdf/images.ts`, branche URL : lire `res.body` par morceaux et
+    abandonner dès que le total dépasse `imageMaxBytes()`, au lieu de
+    `res.arrayBuffer()` suivi d'une vérification. Sans `content-length`,
+    le plafond ne borne pas la mémoire aujourd'hui.
 
 Vérification : `tsc`, `lint`, `build` verts. Commit : « Close the remaining
 review findings ».
