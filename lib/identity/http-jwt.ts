@@ -6,6 +6,10 @@
 //   IDENTITY_PROVIDER_NAME   label shown on the sign-in prompt
 //   IDENTITY_LOGIN_URL       where a visitor without a session is sent; the
 //                            return URL is appended as ?return_to=
+//   IDENTITY_PROFILE_SETUP_URL  where a subject without a profile is sent to
+//                            fill it in; the return URL is appended as
+//                            ?return_to= and the provider sends them back
+//                            there once done
 //   IDENTITY_JWT_SECRET      HS256 secret the provider signs entry tokens with
 //   IDENTITY_JWT_ISSUER      optional expected "iss" claim
 //   IDENTITY_JWT_AUDIENCE    optional expected "aud" claim
@@ -94,21 +98,28 @@ async function fetchProviderJson(url: string): Promise<{ status: number; body: u
   }
 }
 
+function withReturn(base: string | null, returnTo: string): string | null {
+  if (!base) return null;
+  try {
+    const u = new URL(base);
+    u.searchParams.set("return_to", returnTo);
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 export const httpJwtProvider: IdentityProvider = {
   get name() {
     return env("IDENTITY_PROVIDER_NAME") ?? "your account";
   },
 
   loginUrl(returnTo: string): string | null {
-    const base = env("IDENTITY_LOGIN_URL");
-    if (!base) return null;
-    try {
-      const u = new URL(base);
-      u.searchParams.set("return_to", returnTo);
-      return u.toString();
-    } catch {
-      return null;
-    }
+    return withReturn(env("IDENTITY_LOGIN_URL"), returnTo);
+  },
+
+  profileSetupUrl(returnTo: string): string | null {
+    return withReturn(env("IDENTITY_PROFILE_SETUP_URL"), returnTo);
   },
 
   async verifyEntryToken(token: string): Promise<Identity> {

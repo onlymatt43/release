@@ -4,7 +4,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { after } from "next/server";
-import { getAgreement, partyOf, markDownloaded, everyoneDownloaded, finishDelivery } from "@/lib/agreements";
+import { getAgreement, seatOf, markDownloaded, everyoneDownloaded, finishDelivery } from "@/lib/agreements";
 import { renderAgreementPdf } from "@/lib/pdf/render";
 import { requireSession } from "@/lib/app-request";
 
@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params;
   const agreement = await getAgreement(id);
-  if (!agreement || !partyOf(agreement, session)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!agreement || !seatOf(agreement, session)) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (agreement.status !== "sealed") return NextResponse.json({ error: "Not sealed yet" }, { status: 409 });
 
   let pdf: Buffer;
@@ -30,13 +30,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   after(async () => {
     try {
       await markDownloaded(agreement.id, session.id);
-      if (await everyoneDownloaded(agreement.id)) await finishDelivery(agreement.id);
+      if (await everyoneDownloaded(agreement)) await finishDelivery(agreement.id);
     } catch (err) {
       console.error("[agreements pdf cleanup]", err instanceof Error ? err.message : err);
     }
   });
 
-  const handles = agreement.parties.map((p) => p.subject.handle).join("-");
+  const handles = agreement.invited.map((i) => i.handle).join("-");
   return new NextResponse(new Uint8Array(pdf), {
     status: 200,
     headers: {

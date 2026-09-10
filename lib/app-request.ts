@@ -4,6 +4,20 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSession } from "@/lib/session";
 import type { Identity } from "@/lib/identity/types";
 import type { Contract } from "@/lib/contract";
+import { IdentityError, type IdentityProvider, type Profile } from "@/lib/identity/types";
+
+/**
+ * Fetch a subject's profile, or null when the provider has none on file.
+ * Any other provider failure still throws.
+ */
+export async function profileOrNull(provider: IdentityProvider, subject: Identity): Promise<Profile | null> {
+  try {
+    return await provider.getProfile(subject);
+  } catch (err) {
+    if (err instanceof IdentityError && err.status === 404) return null;
+    throw err;
+  }
+}
 
 export async function requireSession(): Promise<Identity | NextResponse> {
   const session = await getSession();

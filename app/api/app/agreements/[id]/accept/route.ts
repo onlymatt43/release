@@ -4,7 +4,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getIdentityProvider, IdentityError } from "@/lib/identity";
 import { getAgreement, acceptAgreement, pendingFor } from "@/lib/agreements";
-import { requireSession, clientInfo, checkConsents } from "@/lib/app-request";
+import { requireSession, clientInfo, checkConsents, profileOrNull } from "@/lib/app-request";
+import { resolveBaseUrl } from "@/lib/site-config";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession();
@@ -24,7 +25,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!consents.ok) return NextResponse.json({ error: `Consent "${consents.missing}" is required` }, { status: 422 });
 
   try {
-    const profile = await getIdentityProvider().getProfile(session);
+    const provider = getIdentityProvider();
+    const profile = await profileOrNull(provider, session);
+    if (!profile) {
+      const setupUrl = provider.profileSetupUrl(`${await resolveBaseUrl()}/app/a/${id}`);
+      return NextResponse.json({ error: "Your profile is not on file yet", setupUrl }, { status: 404 });
+    }
     const updated = await acceptAgreement(agreement, {
       subject: session, profile, consents: consents.keys, ...clientInfo(req),
     });

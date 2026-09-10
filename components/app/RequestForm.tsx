@@ -10,10 +10,12 @@ import type { Contract } from "@/lib/contract";
 import ConsentChecklist, { allRequiredChecked } from "./ConsentChecklist";
 import ContractText from "./ContractText";
 
-export default function RequestForm({ contract }: { contract: Contract }) {
+export default function RequestForm({ contract, hasProfile }: { contract: Contract; hasProfile: boolean | null }) {
   const router = useRouter();
   const [handle, setHandle] = useState("");
   const [title, setTitle] = useState("");
+  const [iSign, setISign] = useState(hasProfile !== false);
+  const [theySign, setTheySign] = useState(true);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +28,10 @@ export default function RequestForm({ contract }: { contract: Contract }) {
     });
   }, []);
 
-  const ready = handle.trim().replace(/^@/, "").length > 0 && allRequiredChecked(contract.consents, checked);
+  const ready =
+    handle.trim().replace(/^@/, "").length > 0 &&
+    (iSign || theySign) &&
+    (!iSign || allRequiredChecked(contract.consents, checked));
 
   const submit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,9 +42,13 @@ export default function RequestForm({ contract }: { contract: Contract }) {
       const res = await fetch("/api/app/agreements", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ handle, title, consents: Array.from(checked) }),
+        body: JSON.stringify({ handle, title, requesterSigns: iSign, invitedSign: theySign, consents: Array.from(checked) }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 404 && typeof data.setupUrl === "string" && data.setupUrl) {
+        window.location.assign(data.setupUrl);
+        return;
+      }
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
       router.push(`/app/a/${data.id}`);
       router.refresh();
@@ -47,7 +56,7 @@ export default function RequestForm({ contract }: { contract: Contract }) {
       setError(err instanceof Error ? err.message : "Network error");
       setBusy(false);
     }
-  }, [ready, busy, handle, title, checked, router]);
+  }, [ready, busy, handle, title, iSign, theySign, checked, router]);
 
   return (
     <Card>
@@ -81,8 +90,23 @@ export default function RequestForm({ contract }: { contract: Contract }) {
             />
           </div>
 
+          <div className="flex flex-col gap-2">
+            <Label>Who signs</Label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary" checked={iSign} onChange={(e) => setISign(e.target.checked)} />
+              <span>I sign</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary" checked={theySign} onChange={(e) => setTheySign(e.target.checked)} />
+              <span>They sign</span>
+            </label>
+            {!iSign && !theySign && <p className="text-xs text-destructive">At least one side must sign.</p>}
+            {!iSign && theySign && <p className="text-xs text-muted-foreground">You will receive their signed document without signing yourself.</p>}
+            {iSign && !theySign && <p className="text-xs text-muted-foreground">They will receive your signed document without signing themselves.</p>}
+          </div>
+
           <ContractText contract={contract} />
-          <ConsentChecklist consents={contract.consents} checked={checked} onToggle={toggle} />
+          {iSign && <ConsentChecklist consents={contract.consents} checked={checked} onToggle={toggle} />}
 
           {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 

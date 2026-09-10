@@ -125,7 +125,9 @@ function PartyBlock({ rendered, agreement, formatDateTime }: {
 }
 
 export function AgreementDocument({ agreement, parties, brand, formatDateTime }: AgreementDocumentProps) {
-  const handles = parties.map((p) => `@${p.party.subject.handle}`).join(" · ");
+  const seats = agreement.invited
+    .map((i) => `@${i.handle}${i.signs ? "" : " (receives a copy)"}`)
+    .join(" · ");
   return (
     <Document title={agreement.contract.title} author={brand ?? undefined}>
       <Page size="A4" style={styles.page}>
@@ -133,7 +135,7 @@ export function AgreementDocument({ agreement, parties, brand, formatDateTime }:
           {brand ? <Text style={styles.brand}>{brand}</Text> : null}
           <Text style={styles.title}>{agreement.contract.title}</Text>
           {agreement.title ? <Text style={styles.meta}>{agreement.title}</Text> : null}
-          <Text style={styles.meta}>Parties: {handles}</Text>
+          <Text style={styles.meta}>Parties: {seats}</Text>
           {agreement.sealedAt ? <Text style={styles.meta}>Sealed on {formatDateTime(agreement.sealedAt)}</Text> : null}
         </View>
 

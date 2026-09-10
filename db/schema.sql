@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS agreements (
   title           TEXT,
   status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sealed')),
   requester_id    TEXT NOT NULL,             -- provider subject id of the requester
-  invited_json    TEXT NOT NULL,             -- JSON array of {handle, id|null}, requester first
+  invited_json    TEXT NOT NULL,             -- JSON array of {handle, id|null, signs}, requester first
   created_at      TEXT NOT NULL,
   sealed_at       TEXT,
   expires_at      TEXT NOT NULL
@@ -83,8 +83,15 @@ CREATE TABLE IF NOT EXISTS agreement_parties (
   accepted_at   TEXT NOT NULL,
   ip_address    TEXT,
   user_agent    TEXT,
-  downloaded_at TEXT,
   PRIMARY KEY (agreement_id, subject_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_agreement_parties_subject ON agreement_parties(subject_id);
+
+-- Who has downloaded the sealed document (signing or receiving seats alike)
+CREATE TABLE IF NOT EXISTS agreement_deliveries (
+  agreement_id  TEXT NOT NULL REFERENCES agreements(id) ON DELETE CASCADE,
+  subject_id    TEXT NOT NULL,
+  downloaded_at TEXT NOT NULL,
+  PRIMARY KEY (agreement_id, subject_id)
+);

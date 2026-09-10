@@ -4,7 +4,8 @@ import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { getIdentityProvider } from "@/lib/identity";
 import { loadContract, ContractError, type Contract } from "@/lib/contract";
-import { listAgreementsFor, pendingFor, partyOf, seatMatches, seatTakenBy, agreementTtlDays, type Agreement } from "@/lib/agreements";
+import { listAgreementsFor, pendingFor, seatMatches, seatTakenBy, hasDownloaded, agreementTtlDays, type Agreement } from "@/lib/agreements";
+import { profileOrNull } from "@/lib/app-request";
 import { resolveBaseUrl, siteLocale } from "@/lib/site-config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,14 +14,14 @@ import SignInPrompt from "@/components/app/SignInPrompt";
 import SignOutButton from "@/components/app/SignOutButton";
 import type { Identity } from "@/lib/identity/types";
 
-function describe(a: Agreement, me: Identity): { label: string; tone: "default" | "secondary" | "outline" } {
+async function describe(a: Agreement, me: Identity): Promise<{ label: string; tone: "default" | "secondary" | "outline" }> {
   if (pendingFor(a, me)) return { label: "Waiting for you", tone: "default" };
   if (a.status === "sealed") {
-    return partyOf(a, me)?.downloadedAt
+    return (await hasDownloaded(a.id, me.id))
       ? { label: "Downloaded", tone: "outline" }
       : { label: "Ready to download", tone: "default" };
   }
-  const waiting = a.invited.filter((i) => !seatTakenBy(a, i));
+  const waiting = a.invited.filter((i) => i.signs && !seatTakenBy(a, i));
   return { label: `Waiting for ${waiting.map((i) => `@${i.handle}`).join(", ")}`, tone: "secondary" };
 }
 
@@ -42,7 +43,19 @@ export default async function AppHome() {
   }
 
   const agreements = await listAgreementsFor(session);
+  const rows = await Promise.all(agreements.map(async (a) => ({ a, d: await describe(a, session) })));
   const locale = siteLocale() ?? undefined;
+
+  // Whether the provider has a profile on file for this visitor; null when
+  // the provider could not be reached (the request form will say so).
+  let hasProfile: boolean | null = null;
+  try {
+    hasProfile = (await profileOrNull(provider, session)) !== null;
+  } catch {
+    hasProfile = null;
+  }
+  const base = await resolveBaseUrl();
+  const setupUrl = provider.profileSetupUrl(`${base}/app`);
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -63,8 +76,19 @@ export default async function AppHome() {
       </header>
 
       <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+        {hasProfile === false && (
+          <div className="flex flex-col gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+            <span>Your profile is not on file yet. You need it to sign; you can still request a consent you do not sign yourself.</span>
+            {setupUrl && (
+              <a href={setupUrl} className="inline-flex shrink-0 items-center justify-center rounded-lg bg-amber-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-800">
+                Complete my profile
+              </a>
+            )}
+          </div>
+        )}
+
         {contract ? (
-          <RequestForm contract={contract} />
+          <RequestForm contract={contract} hasProfile={hasProfile} />
         ) : (
           <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{contractError}</p>
         )}
@@ -78,8 +102,7 @@ export default async function AppHome() {
               <p className="text-sm text-muted-foreground">Nothing in transit.</p>
             ) : (
               <ul className="divide-y">
-                {agreements.map((a) => {
-                  const d = describe(a, session);
+                {rows.map(({ a, d }) => {
                   const others = a.invited.filter((i) => !seatMatches(i, session));
                   return (
                     <li key={a.id} className="flex items-center justify-between gap-3 py-3">

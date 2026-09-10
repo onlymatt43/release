@@ -4,7 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getIdentityProvider } from "@/lib/identity";
-import { getAgreement, pendingFor, partyOf, seatMatches, seatTakenBy } from "@/lib/agreements";
+import { getAgreement, pendingFor, seatOf, seatMatches, seatTakenBy } from "@/lib/agreements";
+import { profileOrNull } from "@/lib/app-request";
 import { resolveBaseUrl, siteLocale, siteTimeZone } from "@/lib/site-config";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,9 +30,20 @@ export default async function AgreementPage({ params }: PageProps) {
   const agreement = await getAgreement(id);
   if (!agreement) notFound();
 
-  const me = partyOf(agreement, session);
+  const seat = seatOf(agreement, session);
+  if (!seat) notFound();
   const pending = pendingFor(agreement, session);
-  if (!me && !pending) notFound();
+
+  // A signer without a profile on file is sent to fill it in, then back here.
+  let setupUrl: string | null = null;
+  if (pending) {
+    let hasProfile: boolean | null = null;
+    try { hasProfile = (await profileOrNull(provider, session)) !== null; } catch { hasProfile = null; }
+    if (hasProfile === false) {
+      const base = await resolveBaseUrl();
+      setupUrl = provider.profileSetupUrl(`${base}/app/a/${id}`) ?? "";
+    }
+  }
 
   const locale = siteLocale() ?? undefined;
   const timeZone = siteTimeZone() ?? undefined;
@@ -63,7 +75,7 @@ export default async function AgreementPage({ params }: PageProps) {
                       {seatMatches(i, session) ? " (you)" : ""}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {p ? `Accepted ${fmt(p.acceptedAt)}` : "Not yet"}
+                      {!i.signs ? "Receives a copy" : p ? `Signed ${fmt(p.acceptedAt)}` : "Not signed yet"}
                     </span>
                   </li>
                 );
@@ -73,9 +85,22 @@ export default async function AgreementPage({ params }: PageProps) {
 
           <ContractText contract={agreement.contract} />
 
-          {pending && <AcceptForm agreementId={agreement.id} contract={agreement.contract} />}
+          {pending && setupUrl === null && <AcceptForm agreementId={agreement.id} contract={agreement.contract} />}
 
-          {me && agreement.status === "sealed" && (
+          {pending && setupUrl !== null && (
+            <div className="flex flex-col gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <span>Your profile is not on file yet. Fill it in once, then come back here to sign.</span>
+              {setupUrl ? (
+                <a href={setupUrl} className="inline-flex items-center justify-center rounded-lg bg-amber-900 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800">
+                  Complete my profile
+                </a>
+              ) : (
+                <span className="text-xs">Ask the operator where to complete your profile.</span>
+              )}
+            </div>
+          )}
+
+          {agreement.status === "sealed" && (
             <a
               href={`/api/app/agreements/${agreement.id}/pdf`}
               className="inline-flex w-full items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/80"
@@ -84,9 +109,9 @@ export default async function AgreementPage({ params }: PageProps) {
             </a>
           )}
 
-          {me && agreement.status !== "sealed" && (
+          {!pending && agreement.status !== "sealed" && (
             <p className="text-sm text-muted-foreground">
-              Waiting for the other {agreement.invited.length > 2 ? "parties" : "party"} to accept.
+              Waiting for the other {agreement.invited.length > 2 ? "parties" : "party"} to sign.
               Share this page with them:
               <span className="mt-1 block break-all font-mono text-xs">{`/app/a/${agreement.id}`}</span>
             </p>

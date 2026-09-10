@@ -16,17 +16,19 @@ export interface Party {
   acceptedAt: string;
   ipAddress: string | null;
   userAgent: string | null;
-  downloadedAt: string | null;
 }
 
 /**
- * Someone expected to take part. When the provider resolved the handle at
+ * A seat at the agreement. When the provider resolved the handle at
  * invitation time, `id` binds the seat to that account even if the handle
  * later changes hands; otherwise the seat is bound to the handle alone.
+ * A seat that does not sign only receives the document: someone who already
+ * holds their own release, or who is being granted consent.
  */
 export interface Invitee {
   handle: string;
   id: string | null;
+  signs: boolean;
 }
 
 export interface Agreement {
@@ -35,8 +37,9 @@ export interface Agreement {
   title: string | null;
   status: AgreementStatus;
   requesterId: string;
-  /** Everyone expected to take part, requester first, in invitation order. */
+  /** Every seat, requester first, in invitation order. */
   invited: Invitee[];
+  /** Signers who have accepted, with the profile they accepted with. */
   parties: Party[];
   createdAt: string;
   sealedAt: string | null;
@@ -86,7 +89,6 @@ function rowToAgreement(row: Record<string, unknown>, partyRows: Record<string, 
       acceptedAt: p.accepted_at as string,
       ipAddress: (p.ip_address as string | null) ?? null,
       userAgent: (p.user_agent as string | null) ?? null,
-      downloadedAt: (p.downloaded_at as string | null) ?? null,
     })),
     createdAt: row.created_at as string,
     sealedAt: (row.sealed_at as string | null) ?? null,
@@ -167,6 +169,15 @@ async function insertParty(agreementId: string, party: PartyInput, acceptedAt: s
   });
 }
 
+/** Subjects who have downloaded the sealed document. */
+async function deliveredTo(agreementId: string): Promise<Set<string>> {
+  const res = await getDb().execute({
+    sql: "SELECT subject_id FROM agreement_deliveries WHERE agreement_id = ?",
+    args: [agreementId],
+  });
+  return new Set(res.rows.map((r) => r.subject_id as string));
+}
+
 /** How many in-transit agreements this account has requested. */
 export async function countInTransitRequestedBy(subjectId: string): Promise<number> {
   const res = await getDb().execute({
@@ -177,32 +188,43 @@ export async function countInTransitRequestedBy(subjectId: string): Promise<numb
 }
 
 /** Create an agreement: the requester joins immediately, the others are invited. */
+/**
+ * Create an agreement. The requester takes the first seat; when they sign,
+ * their acceptance is recorded at once (`requester.party` carries their
+ * profile). The agreement seals immediately if no other seat signs.
+ */
 export async function createAgreement(input: {
   contract: Contract;
   title: string | null;
-  requester: PartyInput;
+  requester: { subject: Identity; party: PartyInput | null };
   invited: Invitee[];
 }): Promise<Agreement> {
   const id = newId();
   const now = nowIso();
   const expires = new Date(Date.now() + agreementTtlDays() * 86_400_000).toISOString();
   const requester = input.requester.subject;
-  const invited: Invitee[] = [{ handle: requester.handle, id: requester.id }, ...input.invited];
+  const requesterSigns = input.requester.party !== null;
+  const invited: Invitee[] = [{ handle: requester.handle, id: requester.id, signs: requesterSigns }, ...input.invited];
+  if (!invited.some((i) => i.signs)) throw new Error("At least one seat must sign");
+
+  const sealedNow = !input.invited.some((i) => i.signs);
 
   await getDb().execute({
-    sql: `INSERT INTO agreements (id, contract_json, title, status, requester_id, invited_json, created_at, expires_at)
-          VALUES (:id, :contract, :title, 'pending', :requesterId, :invited, :now, :expires)`,
+    sql: `INSERT INTO agreements (id, contract_json, title, status, requester_id, invited_json, created_at, sealed_at, expires_at)
+          VALUES (:id, :contract, :title, :status, :requesterId, :invited, :now, :sealedAt, :expires)`,
     args: {
       id,
       contract: JSON.stringify(input.contract),
       title: input.title,
+      status: sealedNow ? "sealed" : "pending",
       requesterId: requester.id,
       invited: JSON.stringify(invited),
       now,
+      sealedAt: sealedNow ? now : null,
       expires,
     },
   });
-  await insertParty(id, input.requester, now);
+  if (input.requester.party) await insertParty(id, input.requester.party, now);
 
   const created = await getAgreement(id);
   if (!created) throw new Error("Agreement vanished after creation");
@@ -219,11 +241,18 @@ export function seatTakenBy(agreement: Agreement, invitee: Invitee): Party | nul
   return agreement.parties.find((p) => seatMatches(invitee, p.subject)) ?? null;
 }
 
-/** Whether this subject is expected to join and has not joined yet. */
+/** The seat this subject holds, if any. */
+export function seatOf(agreement: Agreement, subject: Identity): Invitee | null {
+  return agreement.invited.find((i) => seatMatches(i, subject)) ?? null;
+}
+
+/** Whether this subject is expected to sign and has not signed yet. */
 export function pendingFor(agreement: Agreement, subject: Identity): boolean {
+  const seat = seatOf(agreement, subject);
   return (
     agreement.status === "pending" &&
-    agreement.invited.some((i) => seatMatches(i, subject)) &&
+    seat !== null &&
+    seat.signs &&
     !agreement.parties.some((p) => p.subject.id === subject.id)
   );
 }
@@ -239,7 +268,7 @@ export async function acceptAgreement(agreement: Agreement, party: PartyInput): 
   await insertParty(agreement.id, party, now);
 
   const joined = [...agreement.parties.map((p) => p.subject), party.subject];
-  const complete = agreement.invited.every((i) => joined.some((s) => seatMatches(i, s)));
+  const complete = agreement.invited.every((i) => !i.signs || joined.some((s) => seatMatches(i, s)));
   if (complete) {
     await getDb().execute({
       sql: "UPDATE agreements SET status = 'sealed', sealed_at = ? WHERE id = ?",
@@ -254,19 +283,26 @@ export async function acceptAgreement(agreement: Agreement, party: PartyInput): 
 
 export async function markDownloaded(agreementId: string, subjectId: string): Promise<void> {
   await getDb().execute({
-    sql: `UPDATE agreement_parties SET downloaded_at = ?
-          WHERE agreement_id = ? AND subject_id = ? AND downloaded_at IS NULL`,
-    args: [nowIso(), agreementId, subjectId],
+    sql: `INSERT OR IGNORE INTO agreement_deliveries (agreement_id, subject_id, downloaded_at)
+          VALUES (?, ?, ?)`,
+    args: [agreementId, subjectId, nowIso()],
   });
 }
 
-export async function everyoneDownloaded(agreementId: string): Promise<boolean> {
-  const res = await getDb().execute({
-    sql: `SELECT COUNT(*) AS remaining FROM agreement_parties
-          WHERE agreement_id = ? AND downloaded_at IS NULL`,
-    args: [agreementId],
+/** Whether every seat, signing or not, has downloaded the document. */
+export async function everyoneDownloaded(agreement: Agreement): Promise<boolean> {
+  const delivered = await deliveredTo(agreement.id);
+  return agreement.invited.every((seat) => {
+    if (seat.id) return delivered.has(seat.id);
+    // A handle-only seat is identified by whoever signed for it, if anyone.
+    const party = seatTakenBy(agreement, seat);
+    return party ? delivered.has(party.subject.id) : false;
   });
-  return Number(res.rows[0]?.remaining ?? 1) === 0;
+}
+
+/** Whether this subject already has their copy. */
+export async function hasDownloaded(agreementId: string, subjectId: string): Promise<boolean> {
+  return (await deliveredTo(agreementId)).has(subjectId);
 }
 
 /**
@@ -292,6 +328,7 @@ export async function deleteAgreement(agreementId: string): Promise<void> {
   const db = getDb();
   await db.batch(
     [
+      { sql: "DELETE FROM agreement_deliveries WHERE agreement_id = ?", args: [agreementId] },
       { sql: "DELETE FROM agreement_parties WHERE agreement_id = ?", args: [agreementId] },
       { sql: "DELETE FROM agreements WHERE id = ?", args: [agreementId] },
     ],

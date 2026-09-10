@@ -33,6 +33,10 @@ export default function AcceptForm({ agreementId, contract }: { agreementId: str
         body: JSON.stringify({ consents: Array.from(checked) }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 404 && typeof data.setupUrl === "string" && data.setupUrl) {
+        window.location.assign(data.setupUrl);
+        return;
+      }
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
       router.refresh();
     } catch (err) {

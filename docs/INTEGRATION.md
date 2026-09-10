@@ -92,7 +92,11 @@ Réponse attendue (`200`) :
   ignorée et le document affiche « Image unavailable ». Taille maximale par
   image : `PROFILE_IMAGE_MAX_BYTES` (5 Mo par défaut). Les URI `data:` sont
   le choix le plus sûr : rien n'expire, rien n'est refusé.
-- `404` signifie « pas de profil » : `release` refuse l'action et le dit.
+- `404` signifie « pas de profil ». `Release` n'affiche alors pas le bouton
+  de signature mais « Complete my profile », qui envoie la personne vers
+  `IDENTITY_PROFILE_SETUP_URL?return_to=<URL absolue>`. Une fois le profil
+  rempli, le fournisseur la renvoie sur `return_to` (la session `release`
+  est encore valide, pas besoin de repasser par `/app/enter`) et elle signe.
 
 ## 2b. Résolution d'un handle (recommandé)
 
@@ -123,11 +127,18 @@ par défaut.
 
 ## 4. Cycle de vie d'un accord
 
-1. A, connecté, saisit le handle de B (ou plusieurs). Le profil de A est
-   récupéré et figé. L'accord est `pending`.
-2. B ouvre `/app/a/{id}` (ou le voit dans « In transit » à sa connexion),
-   se connecte, coche les consentements, accepte. Son profil est récupéré et
-   figé. Quand tous les handles invités ont accepté : `sealed`.
+Chaque siège **signe** ou **reçoit seulement**. A choisit à la demande :
+« I sign » et « They sign », les deux cochés par défaut. Décocher l'un donne
+un accord à sens unique, pour quelqu'un qui a déjà sa propre lettre de
+consentement ou à qui l'on accorde le sien. Au moins un siège doit signer.
+
+1. A, connecté, saisit le handle de B (ou plusieurs). Si A signe, son profil
+   est récupéré et figé. L'accord est `pending`, ou `sealed` tout de suite si
+   personne d'autre ne signe.
+2. B ouvre `/app/a/{id}` (ou le voit dans « In transit » à sa connexion).
+   S'il signe : il coche les consentements et accepte ; son profil est
+   récupéré et figé. Quand tous les sièges signataires ont accepté :
+   `sealed`. S'il ne signe pas, il n'a rien à faire d'autre que télécharger.
 3. Chaque partie télécharge `/api/app/agreements/{id}/pdf`.
 4. Dès que toutes les parties ont téléchargé, l'accord est **supprimé**,
    immédiatement ou à la fin de la fenêtre `AGREEMENT_DELIVERY_GRACE_MINUTES`

@@ -40,6 +40,8 @@ export interface IdentityProvider {
   name: string;
   /** Absolute URL a visitor without a session is sent to, with a return URL. */
   loginUrl(returnTo: string): string | null;
+  /** Absolute URL where a subject fills in their profile, with a return URL. */
+  profileSetupUrl(returnTo: string): string | null;
   /** Verify a provider-issued entry token and return the identity it carries. */
   verifyEntryToken(token: string): Promise<Identity>;
   /** Fetch the subject's complete, already-filled profile. */
