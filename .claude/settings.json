@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "permissions": {
+    "bash": true,
+    "artifact": true,
+    "github": true
+  },
+  "disabledSkills": [
+    "session-start-hook",
+    "docx",
+    "pdf",
+    "pptx",
+    "xlsx"
+  ]
+}
