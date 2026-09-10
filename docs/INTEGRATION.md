@@ -134,7 +134,7 @@ par défaut.
    défaut, pour permettre de reprendre un téléchargement interrompu ; `0`
    supprime immédiatement). Sinon, tout accord dont `expires_at` est passé
    (`AGREEMENT_TTL_DAYS`, 7 par défaut) est supprimé au premier accès, et
-   au plus tard par le cron quotidien `/api/cron/purge` (`vercel.json`).
+   au plus tard par le cron horaire `/api/cron/purge` (`vercel.json`).
 
 Un compte ne peut avoir que `AGREEMENT_MAX_IN_TRANSIT` demandes en cours
 à la fois (10 par défaut), et une demande ne peut inviter plus de 10 handles.
@@ -144,14 +144,3 @@ Aucune notification n'est envoyée par `release`.
 ## 5. Variables d'environnement
 
 Voir `.env.example`, section « Transport flow ».
-
-## 6. Base de données
-
-Le schéma complet est dans `db/schema.sql` (à appliquer sur une base
-neuve). Une base créée avant que les invitations soient liées à un
-identifiant de compte (colonne `invited_handles`) doit passer par
-`db/migrations/2026-09-10-agreement-seats.sql` une seule fois :
-
-```
-turso db shell <nom-de-la-base> < db/migrations/2026-09-10-agreement-seats.sql
-```

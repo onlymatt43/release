@@ -73,11 +73,8 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-/** Seats as stored; a bare handle (rows written before seats carried ids) binds to the handle alone. */
 function parseInvited(json: string): Invitee[] {
-  return (JSON.parse(json) as unknown[]).map((v) =>
-    typeof v === "string" ? { handle: v, id: null } : { handle: (v as Invitee).handle, id: (v as Invitee).id ?? null }
-  );
+  return JSON.parse(json) as Invitee[];
 }
 
 function rowToAgreement(row: Record<string, unknown>, partyRows: Record<string, unknown>[]): Agreement {
@@ -126,23 +123,45 @@ export async function getAgreement(id: string): Promise<Agreement | null> {
 /** Every in-transit agreement the subject is invited to or has joined. */
 export async function listAgreementsFor(subject: Identity): Promise<Agreement[]> {
   const db = getDb();
+  const now = nowIso();
   const res = await db.execute({
-    sql: `SELECT DISTINCT a.id
+    sql: `SELECT DISTINCT a.id, a.contract_json, a.title, a.status, a.requester_id,
+                 a.invited_json, a.created_at, a.sealed_at, a.expires_at
           FROM agreements a
           LEFT JOIN agreement_parties p ON p.agreement_id = a.id
-          WHERE p.subject_id = :id
+          WHERE a.expires_at > :now
+             AND (p.subject_id = :id
              OR EXISTS (
                SELECT 1 FROM json_each(a.invited_json) i
                WHERE (json_extract(i.value, '$.id') IS NOT NULL AND json_extract(i.value, '$.id') = :id)
                   OR (json_extract(i.value, '$.id') IS NULL AND json_extract(i.value, '$.handle') = :handle)
-             )
+             ))
           ORDER BY a.created_at DESC`,
-    args: { id: subject.id, handle: subject.handle },
+    args: { id: subject.id, handle: subject.handle, now },
   });
+
+  if (res.rows.length === 0) return [];
+
+  const agreementIds = res.rows.map((row) => (row.id as string));
+  const parties = await db.execute({
+    sql: `SELECT * FROM agreement_parties WHERE agreement_id IN (${agreementIds.map(() => "?").join(",")}) ORDER BY agreement_id, accepted_at ASC`,
+    args: agreementIds,
+  });
+
+  const partiesByAgreement = new Map<string, Record<string, unknown>[]>();
+  for (const party of parties.rows) {
+    const id = party.agreement_id as string;
+    if (!partiesByAgreement.has(id)) {
+      partiesByAgreement.set(id, []);
+    }
+    partiesByAgreement.get(id)!.push(party as Record<string, unknown>);
+  }
+
   const out: Agreement[] = [];
   for (const row of res.rows) {
-    const a = await getAgreement(row.id as string);
-    if (a) out.push(a);
+    const id = row.id as string;
+    const partyRows = partiesByAgreement.get(id) ?? [];
+    out.push(rowToAgreement(row as Record<string, unknown>, partyRows));
   }
   return out;
 }
@@ -161,8 +180,9 @@ async function insertParty(agreementId: string, party: PartyInput, acceptedAt: s
     sql: `INSERT OR IGNORE INTO agreement_parties
             (agreement_id, subject_id, handle, subject_json, profile_json, consents_json,
              accepted_at, ip_address, user_agent)
-          VALUES (:agreementId, :subjectId, :handle, :subjectJson, :profileJson, :consentsJson,
-                  :acceptedAt, :ipAddress, :userAgent)`,
+          SELECT :agreementId, :subjectId, :handle, :subjectJson, :profileJson, :consentsJson,
+                 :acceptedAt, :ipAddress, :userAgent
+          WHERE EXISTS (SELECT 1 FROM agreements WHERE id = :agreementId AND expires_at > :acceptedAt)`,
     args: {
       agreementId,
       subjectId: party.subject.id,
@@ -180,7 +200,12 @@ async function insertParty(agreementId: string, party: PartyInput, acceptedAt: s
 /** How many in-transit agreements this account has requested. */
 export async function countInTransitRequestedBy(subjectId: string): Promise<number> {
   const res = await getDb().execute({
-    sql: "SELECT COUNT(*) AS n FROM agreements WHERE requester_id = ? AND expires_at > ?",
+    sql: `SELECT COUNT(DISTINCT a.id) AS n FROM agreements a
+          WHERE a.requester_id = ? AND a.expires_at > ?
+            AND (a.status = 'pending' OR EXISTS (
+              SELECT 1 FROM agreement_parties p
+              WHERE p.agreement_id = a.id AND p.downloaded_at IS NULL
+            ))`,
     args: [subjectId, nowIso()],
   });
   return Number(res.rows[0]?.n ?? 0);
@@ -199,20 +224,41 @@ export async function createAgreement(input: {
   const requester = input.requester.subject;
   const invited: Invitee[] = [{ handle: requester.handle, id: requester.id }, ...input.invited];
 
-  await getDb().execute({
-    sql: `INSERT INTO agreements (id, contract_json, title, status, requester_id, invited_json, created_at, expires_at)
-          VALUES (:id, :contract, :title, 'pending', :requesterId, :invited, :now, :expires)`,
-    args: {
-      id,
-      contract: JSON.stringify(input.contract),
-      title: input.title,
-      requesterId: requester.id,
-      invited: JSON.stringify(invited),
-      now,
-      expires,
-    },
-  });
-  await insertParty(id, input.requester, now);
+  const db = getDb();
+  await db.batch(
+    [
+      {
+        sql: `INSERT INTO agreements (id, contract_json, title, status, requester_id, invited_json, created_at, expires_at)
+              VALUES (:id, :contract, :title, 'pending', :requesterId, :invited, :now, :expires)`,
+        args: {
+          id,
+          contract: JSON.stringify(input.contract),
+          title: input.title,
+          requesterId: requester.id,
+          invited: JSON.stringify(invited),
+          now,
+          expires,
+        },
+      },
+      {
+        sql: `INSERT INTO agreement_parties (agreement_id, subject_id, handle, subject_json, profile_json, consents_json, accepted_at, ip_address, user_agent)
+              SELECT :id, :subjectId, :handle, :subject, :profile, :consents, :now, :ip, :ua
+              WHERE EXISTS (SELECT 1 FROM agreements WHERE id = :id AND expires_at > :now)`,
+        args: {
+          id,
+          subjectId: requester.id,
+          handle: requester.handle,
+          subject: JSON.stringify(input.requester.subject),
+          profile: JSON.stringify(input.requester.profile),
+          consents: JSON.stringify(input.requester.consents),
+          now,
+          ip: input.requester.ipAddress,
+          ua: input.requester.userAgent,
+        },
+      },
+    ],
+    "write"
+  );
 
   const created = await getAgreement(id);
   if (!created) throw new Error("Agreement vanished after creation");
@@ -322,10 +368,13 @@ export async function deleteAgreement(agreementId: string): Promise<void> {
 export async function purgeExpired(): Promise<number> {
   const db = getDb();
   const now = nowIso();
-  const expired = await db.execute({
-    sql: "SELECT id FROM agreements WHERE expires_at <= ?",
-    args: [now],
-  });
-  for (const row of expired.rows) await deleteAgreement(row.id as string);
-  return expired.rows.length;
+  const result = await db.batch(
+    [
+      { sql: "DELETE FROM agreement_parties WHERE agreement_id IN (SELECT id FROM agreements WHERE expires_at <= ?)", args: [now] },
+      { sql: "DELETE FROM agreements WHERE expires_at <= ?", args: [now] },
+      { sql: "DELETE FROM agreement_parties WHERE agreement_id NOT IN (SELECT id FROM agreements)", args: [] },
+    ],
+    "write"
+  );
+  return result[1]?.rowsAffected ?? 0;
 }

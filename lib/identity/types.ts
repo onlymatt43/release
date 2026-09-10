@@ -71,7 +71,7 @@ export function normalizeHandle(raw: string): string {
 /** Validate an untrusted value as an Identity, throwing IdentityError otherwise. */
 export function parseIdentity(raw: unknown): Identity {
   const o = (raw ?? {}) as Record<string, unknown>;
-  const id = asString(o.id) ?? asString(o.sub);
+  const id = asString(o.sub) ?? asString(o.id);
   const handle = asString(o.handle);
   if (!id || !handle) throw new IdentityError("Identity must carry an id and a handle", 502);
   return {

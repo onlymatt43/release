@@ -38,3 +38,4 @@ CREATE TABLE IF NOT EXISTS agreement_parties (
 );
 
 CREATE INDEX IF NOT EXISTS idx_agreement_parties_subject ON agreement_parties(subject_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agreement_parties_handle ON agreement_parties(agreement_id, handle);

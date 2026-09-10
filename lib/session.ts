@@ -20,7 +20,7 @@ function ttlSeconds(): number {
 }
 
 export async function createSessionToken(identity: Identity): Promise<string> {
-  return new SignJWT({ handle: identity.handle, name: identity.name, avatar: identity.avatar })
+  return new SignJWT({ handle: identity.handle })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(identity.id)
     .setIssuedAt()

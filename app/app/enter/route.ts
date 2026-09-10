@@ -9,12 +9,22 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getIdentityProvider, IdentityError } from "@/lib/identity";
 import { SESSION_COOKIE, createSessionToken, sessionCookieOptions } from "@/lib/session";
 import { safeReturnPath } from "@/lib/app-request";
+import { resolveBaseUrl } from "@/lib/site-config";
 
 export async function GET(req: NextRequest) {
   return enter(req, req.nextUrl.searchParams.get("token"), req.nextUrl.searchParams.get("return_to"));
 }
 
 export async function POST(req: NextRequest) {
+  const origin = req.headers.get("origin");
+  if (origin) {
+    const base = await resolveBaseUrl();
+    const baseUrl = new URL(base);
+    if (origin !== baseUrl.origin) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
   let token: string | null = null;
   let returnTo: string | null = null;
   const type = req.headers.get("content-type") ?? "";
@@ -46,8 +56,10 @@ async function enter(req: NextRequest, token: string | null, rawReturnTo: string
     res.cookies.set(SESSION_COOKIE, await createSessionToken(identity), sessionCookieOptions());
     return res;
   } catch (err) {
-    const status = err instanceof IdentityError ? err.status : 500;
-    const message = err instanceof Error ? err.message : "Sign-in failed";
-    return NextResponse.json({ error: message }, { status });
+    if (err instanceof IdentityError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    console.error("Sign-in failed:", err);
+    return NextResponse.json({ error: "Sign-in failed" }, { status: 500 });
   }
 }

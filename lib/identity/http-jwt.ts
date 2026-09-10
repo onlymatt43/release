@@ -82,6 +82,7 @@ async function fetchProviderJson(url: string): Promise<{ status: number; body: u
     res = await fetch(url, {
       headers: { Accept: "application/json", ...providerAuthHeaders(url) },
       cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
     });
   } catch {
     throw new IdentityError("Identity provider unreachable", 502);
@@ -147,7 +148,7 @@ export const httpJwtProvider: IdentityProvider = {
     if (!template) return null;
     const url = template.replace("{handle}", encodeURIComponent(handle));
     const { status, body } = await fetchProviderJson(url);
-    if (status === 404) throw new IdentityError(`No account found for @${handle}`, 404);
+    if (status === 404) throw new IdentityError(`No account found for @${handle}`, 422);
     return parseIdentity(body);
   },
 };

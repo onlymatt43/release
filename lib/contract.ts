@@ -64,7 +64,7 @@ export async function loadContract(): Promise<Contract> {
   if (url) {
     let res: Response;
     try {
-      res = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
+      res = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(10_000) });
     } catch {
       throw new ContractError("Contract URL unreachable");
     }

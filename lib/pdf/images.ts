@@ -27,8 +27,9 @@ export interface ResolvedImage {
   format: ImageFormat;
 }
 
-function formatFromMime(mime: string): ImageFormat | null {
-  const m = mime.toLowerCase();
+function formatFromMimeType(mimeType: string): ImageFormat | null {
+  if (!mimeType) return null;
+  const m = mimeType.toLowerCase();
   if (m.includes("png")) return "png";
   if (m.includes("jpeg") || m.includes("jpg")) return "jpg";
   return null;
@@ -51,23 +52,41 @@ export async function resolveImage(src: string): Promise<ResolvedImage | null> {
   try {
     if (src.startsWith("data:")) {
       if (src.length > max * 1.4) return null; // base64 overhead bound
-      const match = /^data:([^;,]+)?(;base64)?,([\s\S]*)$/.exec(src);
+      const match = /^data:([^;,]+)?((?:;[^;,=]+(?:=[^;,]*)?))*,([\s\S]*)$/.exec(src);
       if (!match) return null;
-      const [, mime = "", b64, payload] = match;
+      const [, mimeType = "", params = "", payload] = match;
+      const b64 = params.includes("base64");
       const data = b64 ? Buffer.from(payload, "base64") : Buffer.from(decodeURIComponent(payload), "utf8");
       if (data.length > max) return null;
-      const format = formatFromMime(mime) ?? formatFromBytes(data);
+      const format = formatFromMimeType(mimeType) ?? formatFromBytes(data);
       return format ? { data, format } : null;
     }
 
     if (!urlAllowed(src)) return null;
-    const res = await fetch(src, { headers: providerAuthHeaders(src), cache: "no-store", redirect: "error" });
+    const res = await fetch(src, { headers: providerAuthHeaders(src), cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return null;
     const declared = Number.parseInt(res.headers.get("content-length") ?? "", 10);
     if (Number.isFinite(declared) && declared > max) return null;
-    const data = Buffer.from(await res.arrayBuffer());
-    if (data.length > max) return null;
-    const format = formatFromMime(res.headers.get("content-type") ?? "") ?? formatFromBytes(data);
+
+    const chunks: Buffer[] = [];
+    let totalSize = 0;
+    if (res.body) {
+      const reader = res.body.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          totalSize += value.length;
+          if (totalSize > max) return null;
+          chunks.push(Buffer.from(value));
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    }
+
+    const data = Buffer.concat(chunks);
+    const format = formatFromMimeType(res.headers.get("content-type") ?? "") ?? formatFromBytes(data);
     return format ? { data, format } : null;
   } catch {
     return null;

@@ -16,7 +16,9 @@ import type { Identity } from "@/lib/identity/types";
 function describe(a: Agreement, me: Identity): { label: string; tone: "default" | "secondary" | "outline" } {
   if (pendingFor(a, me)) return { label: "Waiting for you", tone: "default" };
   if (a.status === "sealed") {
-    return partyOf(a, me)?.downloadedAt
+    const myParty = partyOf(a, me);
+    if (!myParty) return { label: "Closed", tone: "outline" };
+    return myParty.downloadedAt
       ? { label: "Downloaded", tone: "outline" }
       : { label: "Ready to download", tone: "default" };
   }
@@ -48,16 +50,7 @@ export default async function AppHome() {
     <div className="min-h-screen bg-muted/30">
       <header className="border-b bg-background px-6 py-4">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
-          <div className="flex items-center gap-3">
-            {session.avatar && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={session.avatar} alt="" className="h-8 w-8 rounded-full" />
-            )}
-            <div className="leading-tight">
-              {session.name && <div className="text-sm font-medium">{session.name}</div>}
-              <div className="text-xs text-muted-foreground">@{session.handle}</div>
-            </div>
-          </div>
+          <div className="text-sm">@{session.handle}</div>
           <SignOutButton />
         </div>
       </header>
