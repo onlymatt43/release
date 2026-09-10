@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "deny": [
+      "Bash(rm *)",
+      "Bash(git rm *)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore *)",
+      "Bash(git clean *)",
+      "Bash(git branch -D *)"
+    ],
+    "ask": [
+      "Edit(app/admin/**)",
+      "Write(app/admin/**)",
+      "Edit(app/api/admin/**)",
+      "Write(app/api/admin/**)",
+      "Edit(middleware.ts)",
+      "Write(middleware.ts)",
+      "Edit(db/schema.sql)",
+      "Write(db/schema.sql)",
+      "Edit(AGENTS.md)",
+      "Write(AGENTS.md)",
+      "Edit(CLAUDE.md)",
+      "Write(CLAUDE.md)",
+      "Edit(docs/HANDOFF.md)",
+      "Write(docs/HANDOFF.md)",
+      "Bash(git push *)"
+    ]
+  }
+}
