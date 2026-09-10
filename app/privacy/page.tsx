@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   description: "Politique de confidentialité · Privacy policy",
 };
 
-const LAST_UPDATED = "2026-09-03";
+const LAST_UPDATED = "2026-09-10";
 
 export default async function PrivacyPage({
   searchParams,
@@ -45,91 +45,74 @@ export default async function PrivacyPage({
         {fr ? (
           <>
             <p>
-              Ce site sert à recueillir et gérer des formulaires de release et de
-              consentement de modèles pour la production de contenu pour adultes.
-              {operator ? ` Il est exploité par ${operator}.` : ""}
+              <strong>release</strong> circule un accord entre plusieurs signataires, génère un PDF pour chacun, puis efface tout. Il ne possède pas de comptes.
+              {operator ? ` Exploité par ${operator}.` : ""}
             </p>
-            <h2>1. Données recueillies</h2>
+            <h2>Identité et profils</h2>
+            <p>
+              L&apos;identité (identifiant, handle, nom d&apos;affichage, avatar) est fournie par un service externe à chaque connexion et conservée dans un cookie de session signé, durée <code>SESSION_TTL_HOURS</code> (24 h par défaut). Rien n&apos;est écrit en base à la connexion.
+            </p>
+            <h2>Pendant le transit</h2>
+            <p>
+              Pendant qu&apos;un accord est en transit, <strong>release</strong> conserve pour chaque partie qui a accepté :
+            </p>
             <ul>
-              <li>Nom légal du modèle et signature.</li>
-              <li>Pièces d&apos;identité (par ex. passeport) téléversées pour vérifier l&apos;identité et l&apos;âge.</li>
-              <li>Les consentements donnés (plateformes de publication autorisées) et les informations de la séance.</li>
+              <li>Une copie figée de son profil tel que transmis par le fournisseur (champs, images, pièces d&apos;identité incluses si le fournisseur les envoie) ;</li>
+              <li>Les consentements cochés ;</li>
+              <li>L&apos;adresse IP et le navigateur au moment de l&apos;acceptation ;</li>
+              <li>La date d&apos;acceptation et la date de téléchargement de son PDF.</li>
             </ul>
-            <h2>2. Où les données sont stockées</h2>
-            <ul>
-              <li>Les enregistrements (nom légal, consentements, métadonnées de séance) sont conservés dans une base de données (Turso/libSQL).</li>
-              <li>Les pièces d&apos;identité et les signatures sont stockées dans un stockage d&apos;objets Cloudflare R2, et ne sont consultables que via des URL signées à durée limitée.</li>
-            </ul>
-            <h2>3. Qui y a accès</h2>
+            <h2>Suppression des données</h2>
             <p>
-              L&apos;accès à ces documents est réservé à l&apos;exploitant
-              authentifié (espace d&apos;administration protégé). Ils ne sont ni
-              publiés ni partagés publiquement.
+              Cette copie est supprimée à la fin de la fenêtre <code>AGREEMENT_DELIVERY_GRACE_MINUTES</code> (15 minutes par défaut) après que chaque partie a téléchargé son PDF, ou au plus tard <code>AGREEMENT_TTL_DAYS</code> (7 jours par défaut) après la demande. La suppression est effective au premier accès suivant la date limite, ou par une tâche planifiée quotidienne.
             </p>
-            <h2>4. Finalité</h2>
+            <h2>PDF</h2>
             <p>
-              Ces données sont recueillies pour respecter les obligations légales
-              de tenue de registres applicables à la production de contenu pour
-              adultes (notamment 18 U.S.C. § 2257 et lois équivalentes) et pour
-              établir les droits sur les œuvres.
+              Le PDF est généré à la demande et n&apos;est jamais stocké. Chaque partie conserve elle-même son exemplaire. <strong>release</strong> n&apos;en garde aucun et ne peut pas le régénérer après suppression.
             </p>
-            <h2>5. Conservation</h2>
-            <p>
-              Les informations d&apos;identité, signatures et documents de
-              vérification sont conservés de façon confidentielle et sécurisée
-              pour la durée minimale exigée par la loi applicable.
-            </p>
-            <h2>6. Nous joindre</h2>
+            <h2>Contact</h2>
             <p>
               {contact ? (
-                <>Pour toute demande relative à vos données : <a href={`mailto:${contact}`}>{contact}</a>.</>
+                <>Pour toute question : <a href={`mailto:${contact}`}>{contact}</a>.</>
               ) : (
-                "Les coordonnées pour les demandes relatives aux données sont fournies par l'exploitant."
+                "Coordonnées de contact fournies par l'exploitant."
               )}
             </p>
           </>
         ) : (
           <>
             <p>
-              This site collects and manages model release and consent forms for
-              adult content production.
-              {operator ? ` It is operated by ${operator}.` : ""}
+              <strong>release</strong> circulates an agreement between multiple parties, generates a PDF for each, then deletes everything. It holds no accounts.
+              {operator ? ` Operated by ${operator}.` : ""}
             </p>
-            <h2>1. Information collected</h2>
+            <h2>Identity and profiles</h2>
+            <p>
+              Identity (subject id, handle, display name, avatar) is supplied by an external provider at each sign-in and held in a signed session cookie, lifetime <code>SESSION_TTL_HOURS</code> (24 hours by default). Nothing is written to the database at sign-in.
+            </p>
+            <h2>During transit</h2>
+            <p>
+              While an agreement is in transit, <strong>release</strong> keeps for each party that has accepted:
+            </p>
             <ul>
-              <li>The model&apos;s legal name and signature.</li>
-              <li>Identity documents (e.g. a passport) uploaded to verify identity and age.</li>
-              <li>The consents given (authorized publication platforms) and shoot information.</li>
+              <li>A frozen snapshot of their profile as supplied by the provider (fields, images, identity documents if the provider sends them) ;</li>
+              <li>The consents they checked ;</li>
+              <li>The IP address and browser user-agent at the moment of acceptance ;</li>
+              <li>The acceptance date and the PDF download date.</li>
             </ul>
-            <h2>2. Where data is stored</h2>
-            <ul>
-              <li>Records (legal name, consents, shoot metadata) are kept in a database (Turso/libSQL).</li>
-              <li>Identity documents and signatures are stored in Cloudflare R2 object storage and are reachable only through short-lived signed URLs.</li>
-            </ul>
-            <h2>3. Who has access</h2>
+            <h2>Data deletion</h2>
             <p>
-              Access to these documents is restricted to the authenticated
-              operator (a protected admin area). They are never published or
-              shared publicly.
+              This snapshot is deleted at the end of the <code>AGREEMENT_DELIVERY_GRACE_MINUTES</code> window (15 minutes by default) after every party has downloaded their PDF, or no later than <code>AGREEMENT_TTL_DAYS</code> (7 days by default) after the request. Deletion takes effect on the first access past the deadline, or via a daily scheduled task.
             </p>
-            <h2>4. Purpose</h2>
+            <h2>PDF</h2>
             <p>
-              This data is collected to meet the record-keeping obligations that
-              apply to adult content production (notably 18 U.S.C. § 2257 and
-              equivalent laws) and to establish rights in the works.
+              The PDF is generated on demand and is never stored. Each party keeps their own copy. <strong>release</strong> keeps none and cannot regenerate it after deletion.
             </p>
-            <h2>5. Retention</h2>
-            <p>
-              Identity information, signatures and verification documents are kept
-              confidentially and securely for the minimum duration required by
-              applicable law.
-            </p>
-            <h2>6. Contact</h2>
+            <h2>Contact</h2>
             <p>
               {contact ? (
-                <>For any request about your data: <a href={`mailto:${contact}`}>{contact}</a>.</>
+                <>For any question: <a href={`mailto:${contact}`}>{contact}</a>.</>
               ) : (
-                "Contact details for data requests are provided by the operator."
+                "Contact details provided by the operator."
               )}
             </p>
           </>

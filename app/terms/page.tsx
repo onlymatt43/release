@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description: "Conditions d’utilisation · Terms of Service",
 };
 
-const LAST_UPDATED = "2026-09-03";
+const LAST_UPDATED = "2026-09-10";
 
 export default async function TermsPage({
   searchParams,
@@ -43,64 +43,63 @@ export default async function TermsPage({
         {fr ? (
           <>
             <p>
-              Ces conditions régissent l&apos;utilisation de cet outil de
-              formulaires de release et de consentement
-              {operator ? `, exploité par ${operator}` : ""}.
+              Ces conditions régissent l&apos;utilisation de <strong>release</strong>{operator ? `, exploité par ${operator}` : ""}.
             </p>
-            <h2>1. Objet</h2>
+            <h2>Objet</h2>
             <p>
-              L&apos;outil sert à signer et conserver des formulaires de
-              consentement et de cession de droits pour la production de contenu
-              pour adultes. Les signataires doivent avoir 18 ans ou plus.
+              <strong>release</strong> circule un accord entre plusieurs signataires, remet à chacun son exemplaire, puis efface tout.
             </p>
-            <h2>2. Exactitude des informations</h2>
+            <h2>Signataires</h2>
             <ul>
-              <li>Les informations fournies (nom légal, pièces d&apos;identité, signature) doivent être exactes et vous appartenir.</li>
-              <li>La soumission d&apos;informations fausses ou usurpées est interdite.</li>
+              <li>Les signataires attestent avoir 18 ans ou plus.</li>
+              <li>Les informations fournies via le fournisseur d&apos;identité doivent être exactes.</li>
             </ul>
-            <h2>3. Accès</h2>
+            <h2>Expiration</h2>
             <p>
-              L&apos;espace d&apos;administration est réservé à l&apos;exploitant
-              autorisé. La consultation des documents signés se fait par liens
-              signés à durée limitée.
+              Un accord expire s&apos;il n&apos;est pas complété et livré dans le délai configuré. Il est alors supprimé sans recours.
             </p>
-            <h2>4. Nous joindre</h2>
+            <h2>Exemplaire</h2>
+            <p>
+              Un exemplaire téléchargé est la seule copie que <strong>release</strong> remet. Sa conservation vous incombe.
+            </p>
+            <h2>Contact</h2>
             <p>
               {contact ? (
-                <>Questions : <a href={`mailto:${contact}`}>{contact}</a>.</>
+                <>Contactez : <a href={`mailto:${contact}`}>{contact}</a>.</>
               ) : (
-                "Les coordonnées sont fournies par l'exploitant."
+                "Coordonnées fournies par l'exploitant."
               )}
             </p>
           </>
         ) : (
           <>
             <p>
-              These terms govern the use of this model release and consent form
-              tool
+              These terms govern the use of <strong>release</strong>
               {operator ? `, operated by ${operator}` : ""}.
             </p>
-            <h2>1. Purpose</h2>
+            <h2>Purpose</h2>
             <p>
-              The tool is used to sign and retain consent and rights-assignment
-              forms for adult content production. Signers must be 18 or older.
+              <strong>release</strong> circulates an agreement between invited parties and delivers a copy to each, then deletes everything.
             </p>
-            <h2>2. Accuracy of information</h2>
+            <h2>Signers</h2>
             <ul>
-              <li>Information you provide (legal name, identity documents, signature) must be accurate and your own.</li>
-              <li>Submitting false or impersonated information is prohibited.</li>
+              <li>Signers attest that they are 18 years of age or older.</li>
+              <li>Information supplied via the identity provider must be accurate.</li>
             </ul>
-            <h2>3. Access</h2>
+            <h2>Expiration</h2>
             <p>
-              The admin area is restricted to the authorized operator. Signed
-              documents are viewed through short-lived signed links.
+              An agreement expires if it is not completed and delivered within the configured deadline. It is then deleted without recourse.
             </p>
-            <h2>4. Contact</h2>
+            <h2>Copy</h2>
+            <p>
+              A downloaded copy is the only one <strong>release</strong> provides to you. You are responsible for keeping it.
+            </p>
+            <h2>Contact</h2>
             <p>
               {contact ? (
-                <>Questions: <a href={`mailto:${contact}`}>{contact}</a>.</>
+                <>Contact: <a href={`mailto:${contact}`}>{contact}</a>.</>
               ) : (
-                "Contact details are provided by the operator."
+                "Contact details provided by the operator."
               )}
             </p>
           </>
