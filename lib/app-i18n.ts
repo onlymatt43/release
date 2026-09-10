@@ -3,9 +3,12 @@
 // (Accept-Language, or an explicit ?lang= override) via pickLocale, then pass
 // the resolved dictionary down to client components as a plain prop.
 //
-// Operator content — the contract text and the reminder messages — is not
-// here: it comes from configuration in the operator's own language. Only the
-// app's own chrome is translated.
+// INVARIANT: only the app's own chrome lives here. Data is NEVER translated —
+// not profile field labels or values (names, addresses, dates), not handles,
+// not the contract text, not the reminder messages. Translating any of those
+// would make the document differ from what was signed. Data is always rendered
+// verbatim; the dictionary is only ever looked up by fixed keys, never fed a
+// value that came from a profile, the provider, or operator configuration.
 
 import type { Locale } from "@/lib/locale";
 

@@ -69,6 +69,8 @@ function PartyBlock({ rendered, agreement, formatDateTime, t }: {
     <View break>
       <Text style={styles.partyTitle}>{heading}</Text>
 
+      {/* Profile labels and values are rendered verbatim, in the language the
+          provider sent them — never translated (see lib/app-i18n INVARIANT). */}
       {party.profile.sections.map((section, i) => (
         <View key={i} style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>{section.title}</Text>
