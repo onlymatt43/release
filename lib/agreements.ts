@@ -29,6 +29,9 @@ export interface Invitee {
   handle: string;
   id: string | null;
   signs: boolean;
+  /** Reminders already sent to this seat. */
+  reminders?: number;
+  lastReminderAt?: string | null;
 }
 
 export interface Agreement {
@@ -37,6 +40,8 @@ export interface Agreement {
   title: string | null;
   status: AgreementStatus;
   requesterId: string;
+  /** Whether the provider sends reminders to unsigned seats on a schedule. */
+  autoRemind: boolean;
   /** Every seat, requester first, in invitation order. */
   invited: Invitee[];
   /** Signers who have accepted, with the profile they accepted with. */
@@ -81,6 +86,7 @@ function rowToAgreement(row: Record<string, unknown>, partyRows: Record<string, 
     title: (row.title as string | null) ?? null,
     status: row.status as AgreementStatus,
     requesterId: row.requester_id as string,
+    autoRemind: Boolean(row.auto_remind),
     invited: JSON.parse(row.invited_json as string) as Invitee[],
     parties: partyRows.map((p) => ({
       subject: JSON.parse(p.subject_json as string) as Identity,
@@ -198,6 +204,7 @@ export async function createAgreement(input: {
   title: string | null;
   requester: { subject: Identity; party: PartyInput | null };
   invited: Invitee[];
+  autoRemind?: boolean;
 }): Promise<Agreement> {
   const id = newId();
   const now = nowIso();
@@ -210,14 +217,15 @@ export async function createAgreement(input: {
   const sealedNow = !input.invited.some((i) => i.signs);
 
   await getDb().execute({
-    sql: `INSERT INTO agreements (id, contract_json, title, status, requester_id, invited_json, created_at, sealed_at, expires_at)
-          VALUES (:id, :contract, :title, :status, :requesterId, :invited, :now, :sealedAt, :expires)`,
+    sql: `INSERT INTO agreements (id, contract_json, title, status, requester_id, auto_remind, invited_json, created_at, sealed_at, expires_at)
+          VALUES (:id, :contract, :title, :status, :requesterId, :autoRemind, :invited, :now, :sealedAt, :expires)`,
     args: {
       id,
       contract: JSON.stringify(input.contract),
       title: input.title,
       status: sealedNow ? "sealed" : "pending",
       requesterId: requester.id,
+      autoRemind: input.autoRemind ? 1 : 0,
       invited: JSON.stringify(invited),
       now,
       sealedAt: sealedNow ? now : null,
@@ -279,6 +287,38 @@ export async function acceptAgreement(agreement: Agreement, party: PartyInput): 
   const updated = await getAgreement(agreement.id);
   if (!updated) throw new Error("Agreement vanished after acceptance");
   return updated;
+}
+
+/** Record that one more reminder went to this seat. */
+export async function recordReminder(agreement: Agreement, seat: Invitee): Promise<void> {
+  const invited = agreement.invited.map((i) =>
+    i === seat || (i.handle === seat.handle && i.id === seat.id)
+      ? { ...i, reminders: (i.reminders ?? 0) + 1, lastReminderAt: nowIso() }
+      : i
+  );
+  await getDb().execute({
+    sql: "UPDATE agreements SET invited_json = ? WHERE id = ?",
+    args: [JSON.stringify(invited), agreement.id],
+  });
+}
+
+/** Pending agreements that asked for automatic reminders. */
+export async function listAutoRemindPending(): Promise<Agreement[]> {
+  const res = await getDb().execute({
+    sql: "SELECT id FROM agreements WHERE status = 'pending' AND auto_remind = 1 AND expires_at > ?",
+    args: [nowIso()],
+  });
+  const out: Agreement[] = [];
+  for (const row of res.rows) {
+    const a = await getAgreement(row.id as string);
+    if (a) out.push(a);
+  }
+  return out;
+}
+
+/** Signing seats nobody has signed for yet. */
+export function unsignedSeats(agreement: Agreement): Invitee[] {
+  return agreement.invited.filter((i) => i.signs && !seatTakenBy(agreement, i));
 }
 
 export async function markDownloaded(agreementId: string, subjectId: string): Promise<void> {

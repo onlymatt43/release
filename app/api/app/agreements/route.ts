@@ -7,6 +7,7 @@ import { loadContract, ContractError } from "@/lib/contract";
 import { createAgreement, countInTransitRequestedBy, maxInTransitPerRequester, type Invitee } from "@/lib/agreements";
 import { requireSession, clientInfo, checkConsents, profileOrNull } from "@/lib/app-request";
 import { resolveBaseUrl } from "@/lib/site-config";
+import { loadReminderConfig } from "@/lib/reminders";
 
 export async function POST(req: NextRequest) {
   const session = await requireSession();
@@ -64,10 +65,17 @@ export async function POST(req: NextRequest) {
       ? { subject: session, profile, consents: consents.keys, ...clientInfo(req) }
       : null;
 
+    // Automatic reminders need both a message list and a provider channel.
+    let autoRemind = false;
+    if (body.autoRemind === true && invitedSign && provider.canNotify()) {
+      autoRemind = (await loadReminderConfig()) !== null;
+    }
+
     const agreement = await createAgreement({
       contract,
       title,
       invited,
+      autoRemind,
       requester: { subject: session, party },
     });
     return NextResponse.json({ id: agreement.id }, { status: 201 });

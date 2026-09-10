@@ -53,6 +53,16 @@ export interface IdentityProvider {
    * handle alone.
    */
   resolveHandle(handle: string): Promise<Identity | null>;
+  /** Whether the provider can deliver a message to a subject on release's behalf. */
+  canNotify(): boolean;
+  /** Deliver a message to a subject through the provider's own channel. */
+  notify(to: { id: string | null; handle: string }, text: string, context: { agreementId: string }): Promise<void>;
+  /**
+   * URL that opens the visitor's own messaging client with a pre-filled
+   * message to the subject, so they send it themselves. Null when not
+   * configured.
+   */
+  composeMessageUrl(to: { id: string | null; handle: string }, text: string): string | null;
 }
 
 export class IdentityError extends Error {

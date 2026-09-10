@@ -153,6 +153,37 @@ Un compte ne peut avoir que `AGREEMENT_MAX_IN_TRANSIT` demandes en cours
 
 Aucune notification n'est envoyée par `release`.
 
+## 4b. Rappels
+
+Les rappels à un siège qui n'a pas signé sont **optionnels** et n'existent
+que si `REMINDER_URL` ou `REMINDER_JSON` est configuré (forme dans
+`config/reminders.example.json`). Le n-ième rappel utilise le n-ième
+message ; après le dernier, plus rien. Placeholders : `{handle}` (le
+signataire), `{from}` (le demandeur), `{title}`, `{link}` (page de l'accord).
+
+Deux canaux, tous deux hors de `release` :
+
+- **Manuel.** Sur la page de l'accord, le demandeur clique « Remind @b ».
+  `release` compte le rappel et ouvre `IDENTITY_COMPOSE_URL` avec le texte
+  pré-rempli (par ex. le compositeur de DM de X, avec `{id}` = identifiant
+  du destinataire). Sans `IDENTITY_COMPOSE_URL`, le texte est copié dans le
+  presse-papiers.
+- **Automatique.** Si `IDENTITY_NOTIFY_URL` est configuré, la demande
+  propose « Send them reminders automatically ». Le cron quotidien
+  `/api/cron/remind` envoie alors chaque rappel dû (`intervalDays` depuis la
+  demande ou le rappel précédent) en appelant :
+
+  ```
+  POST {IDENTITY_NOTIFY_URL}
+  Authorization: Bearer {IDENTITY_SHARED_SECRET}
+  Content-Type: application/json
+
+  { "to": { "id": "456", "handle": "bob" }, "text": "…", "agreementId": "…" }
+  ```
+
+  Toute réponse non-2xx est comptée comme un échec ; le rappel sera retenté
+  au prochain passage.
+
 ## 5. Variables d'environnement
 
 Voir `.env.example`, section « Transport flow ».

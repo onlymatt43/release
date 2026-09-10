@@ -1,0 +1,9 @@
+{
+  "messages": [
+    "Hey {handle}, t'as pas encore signé le consentement pour {title} ? T'as des questions ? {link}",
+    "Hey {handle}, t'as pas encore signé le consentement pour {title} ? T'as des questions ? {link}",
+    "Hey {handle}, t'as pas encore signé le consentement pour {title} ? T'as des questions ? {link}",
+    "Ok, rappel que je ne fais pas de collab si c'est pas signé. Btw, tu peux avoir le même consentement que moi, clique ici : {link}"
+  ],
+  "intervalDays": 2
+}

@@ -64,7 +64,8 @@ CREATE TABLE IF NOT EXISTS agreements (
   title           TEXT,
   status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sealed')),
   requester_id    TEXT NOT NULL,             -- provider subject id of the requester
-  invited_json    TEXT NOT NULL,             -- JSON array of {handle, id|null, signs}, requester first
+  auto_remind     INTEGER NOT NULL DEFAULT 0 CHECK (auto_remind IN (0,1)),
+  invited_json    TEXT NOT NULL,             -- JSON array of {handle, id|null, signs, reminders?, lastReminderAt?}, requester first
   created_at      TEXT NOT NULL,
   sealed_at       TEXT,
   expires_at      TEXT NOT NULL

@@ -22,6 +22,12 @@
 //   IDENTITY_IMAGE_ORIGINS   optional comma-separated extra origins profile
 //                            image URLs may point to (the provider's own
 //                            origin is always allowed)
+//   IDENTITY_NOTIFY_URL      optional endpoint the provider exposes to send a
+//                            message to a subject (POST JSON {to, text,
+//                            agreementId}); enables automatic reminders
+//   IDENTITY_COMPOSE_URL     optional template opening the visitor's own
+//                            messaging client with a pre-filled message;
+//                            "{id}", "{handle}" and "{text}" are replaced
 
 import { jwtVerify } from "jose";
 import {
@@ -147,6 +153,44 @@ export const httpJwtProvider: IdentityProvider = {
     const { status, body } = await fetchProviderJson(url);
     if (status === 404) throw new IdentityError("No profile on file for this account", 404);
     return parseProfile(body, subject);
+  },
+
+  canNotify(): boolean {
+    return env("IDENTITY_NOTIFY_URL") !== null;
+  },
+
+  async notify(to, text, context): Promise<void> {
+    const url = requireEnv("IDENTITY_NOTIFY_URL");
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...(env("IDENTITY_SHARED_SECRET") ? { Authorization: `Bearer ${env("IDENTITY_SHARED_SECRET")}` } : {}),
+        },
+        body: JSON.stringify({ to, text, agreementId: context.agreementId }),
+        cache: "no-store",
+      });
+    } catch {
+      throw new IdentityError("Identity provider unreachable", 502);
+    }
+    if (!res.ok) throw new IdentityError(`Identity provider refused the message (${res.status})`, 502);
+  },
+
+  composeMessageUrl(to, text): string | null {
+    const template = env("IDENTITY_COMPOSE_URL");
+    if (!template) return null;
+    const filled = template
+      .replace("{id}", encodeURIComponent(to.id ?? ""))
+      .replace("{handle}", encodeURIComponent(to.handle))
+      .replace("{text}", encodeURIComponent(text));
+    try {
+      return new URL(filled).toString();
+    } catch {
+      return null;
+    }
   },
 
   async resolveHandle(handle: string): Promise<Identity | null> {

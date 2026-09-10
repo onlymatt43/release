@@ -10,12 +10,13 @@ import type { Contract } from "@/lib/contract";
 import ConsentChecklist, { allRequiredChecked } from "./ConsentChecklist";
 import ContractText from "./ContractText";
 
-export default function RequestForm({ contract }: { contract: Contract }) {
+export default function RequestForm({ contract, canAutoRemind }: { contract: Contract; canAutoRemind: boolean }) {
   const router = useRouter();
   const [handle, setHandle] = useState("");
   const [title, setTitle] = useState("");
   const [iSign, setISign] = useState(true);
   const [theySign, setTheySign] = useState(true);
+  const [autoRemind, setAutoRemind] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +43,7 @@ export default function RequestForm({ contract }: { contract: Contract }) {
       const res = await fetch("/api/app/agreements", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ handle, title, requesterSigns: iSign, invitedSign: theySign, consents: Array.from(checked) }),
+        body: JSON.stringify({ handle, title, requesterSigns: iSign, invitedSign: theySign, autoRemind, consents: Array.from(checked) }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 404 && typeof data.setupUrl === "string" && data.setupUrl) {
@@ -56,7 +57,7 @@ export default function RequestForm({ contract }: { contract: Contract }) {
       setError(err instanceof Error ? err.message : "Network error");
       setBusy(false);
     }
-  }, [ready, busy, handle, title, iSign, theySign, checked, router]);
+  }, [ready, busy, handle, title, iSign, theySign, autoRemind, checked, router]);
 
   return (
     <Card>
@@ -104,6 +105,13 @@ export default function RequestForm({ contract }: { contract: Contract }) {
             {!iSign && theySign && <p className="text-xs text-muted-foreground">You will receive their signed document without signing yourself.</p>}
             {iSign && !theySign && <p className="text-xs text-muted-foreground">They will receive your signed document without signing themselves.</p>}
           </div>
+
+          {canAutoRemind && theySign && (
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary" checked={autoRemind} onChange={(e) => setAutoRemind(e.target.checked)} />
+              <span>Send them reminders automatically until they sign</span>
+            </label>
+          )}
 
           <ContractText contract={contract} />
           {iSign && <ConsentChecklist consents={contract.consents} checked={checked} onToggle={toggle} />}

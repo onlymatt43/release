@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/cron/purge", "schedule": "0 3 * * *" }
+    { "path": "/api/cron/purge", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/remind", "schedule": "0 15 * * *" }
   ]
 }

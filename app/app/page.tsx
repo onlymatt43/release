@@ -8,6 +8,7 @@ import { loadContract, ContractError, type Contract } from "@/lib/contract";
 import { listAgreementsFor, pendingFor, seatMatches, seatTakenBy, hasDownloaded, agreementTtlDays, type Agreement } from "@/lib/agreements";
 import { requireProfile } from "@/lib/app-request";
 import NoProfile from "@/components/app/NoProfile";
+import { loadReminderConfig } from "@/lib/reminders";
 import { resolveBaseUrl, siteLocale } from "@/lib/site-config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +57,13 @@ export default async function AppHome() {
     contractError = err instanceof ContractError ? err.message : "Contract unavailable";
   }
 
+  let canAutoRemind = false;
+  try {
+    canAutoRemind = provider.canNotify() && (await loadReminderConfig()) !== null;
+  } catch {
+    canAutoRemind = false;
+  }
+
   const agreements = await listAgreementsFor(session);
   const rows = await Promise.all(agreements.map(async (a) => ({ a, d: await describe(a, session) })));
   const locale = siteLocale() ?? undefined;
@@ -80,7 +88,7 @@ export default async function AppHome() {
 
       <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
         {contract ? (
-          <RequestForm contract={contract} />
+          <RequestForm contract={contract} canAutoRemind={canAutoRemind} />
         ) : (
           <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{contractError}</p>
         )}
