@@ -411,6 +411,27 @@ review findings ».
 
 ---
 
+## Journal de session, 2026-09-10
+
+Faits seulement, chacun avec sa trace.
+
+- Revue de code du commit `eb6d7b7`, puis huit correctifs poussés
+  (commit `98a788b`).
+- Base Turso `release` (`libsql://release-onlymatt43.aws-us-east-2.turso.io`) :
+  `PRAGMA table_info(agreements)` ne renvoyait rien. L'auteur a créé
+  `agreements` et `agreement_parties` via `turso db shell release`.
+  `.tables` ne liste que ces deux tables.
+- L'auteur a écrit : « on ne garde aucunement les données des users ».
+- L'auteur a confirmé que l'admin reste (réponse « exact. ta déduction est
+  mauvaise » à la question « pourquoi tu delete l'admin »). Il n'a pas dit
+  ce que l'admin montrera.
+- La suppression de fichiers par l'agent a été refusée par le mode de
+  permissions de la session. Rien n'a été supprimé.
+- Ouvert : rôle de l'admin. Ouvert : retrait de `/consent`, `/signed`, R2 et
+  des trois tables (déduction de l'agent, non confirmée par l'auteur).
+
+---
+
 ## Critères de fin
 
 - `git ls-files | grep -c "consent\|signed\|r2\|shoots\|participations"` renvoie 0.
