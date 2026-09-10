@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db";
-import { resolveBaseUrl } from "@/lib/site-config";
+import { resolveBaseUrl, siteLocale } from "@/lib/site-config";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -40,6 +40,7 @@ export default async function ShootDetailPage({ params }: PageProps) {
   const participations = contractsResult.rows as unknown as Participation[];
   const baseUrl = await resolveBaseUrl();
   const consentUrl = `${baseUrl}/consent/${shootId}`;
+  const locale = siteLocale() ?? undefined;
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -61,7 +62,7 @@ export default async function ShootDetailPage({ params }: PageProps) {
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-lg border bg-background p-4 space-y-1">
             <p className="text-sm text-muted-foreground">Date</p>
-            <p className="font-medium">{new Date(shoot.shoot_date).toLocaleDateString("en-CA")}</p>
+            <p className="font-medium">{new Date(shoot.shoot_date).toLocaleDateString(locale)}</p>
             <p className="text-sm text-muted-foreground mt-2">Photographer</p>
             <p className="font-medium">{shoot.photographer}</p>
             {shoot.location && (
@@ -115,7 +116,7 @@ export default async function ShootDetailPage({ params }: PageProps) {
                     <TableCell className="text-muted-foreground text-sm">{p.email}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{p.category ?? p.stage_name}</TableCell>
                     <TableCell className="text-sm">
-                      {new Date(p.signed_at).toLocaleString("en-CA")}
+                      {new Date(p.signed_at).toLocaleString(locale)}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1 flex-wrap">

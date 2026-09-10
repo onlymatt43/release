@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db";
 import { getR2Client, getR2Bucket } from "@/lib/r2";
-import { siteBrandName } from "@/lib/site-config";
+import { siteBrandName, siteLocale, siteTimeZone, sitePlatformExamples } from "@/lib/site-config";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import PrintButton from "@/components/admin/PrintButton";
@@ -88,12 +88,16 @@ export default async function SignedPage({ params }: PageProps) {
     presign(raw.selfie_key as string | null),
   ]);
 
+  const locale = siteLocale() ?? undefined;
+  const timeZone = siteTimeZone() ?? undefined;
+  const platforms = sitePlatformExamples();
+
   const signedAt = raw.signed_at
-    ? new Date(raw.signed_at as string).toLocaleString("fr-CA", { timeZone: "America/Toronto" })
+    ? new Date(raw.signed_at as string).toLocaleString(locale, { timeZone })
     : "—";
 
   const birthDate = raw.birth_date
-    ? new Date(raw.birth_date as string).toLocaleDateString("fr-CA")
+    ? new Date(raw.birth_date as string).toLocaleDateString(locale)
     : "—";
 
   const docLabel = docType ? (DOC_LABELS[docType] ?? docType) : "Not specified";
@@ -159,7 +163,7 @@ export default async function SignedPage({ params }: PageProps) {
           <div className="section-title">Image Rights Assignment Contract and Informed Consent</div>
           <div style={{ fontSize: 11, color: "#333", lineHeight: 1.6 }}>
             <p>By signing this form, the undersigned (hereinafter "the Model") irrevocably authorizes the photographer/producer (hereinafter "the Producer") and their successors, assignees, and licensees to use, reproduce, modify, distribute, publish, and license the photographic and audiovisual works created during the session covered by this document.</p>
-            <p style={{ marginTop: 8 }}>This authorization specifically includes commercial exploitation and distribution on any digital content platform, social networks, or adult platforms (including but not limited to OnlyFans, Fansly, Faphouse) as well as any other digital or physical medium, present or future, without geographical or temporal restriction.</p>
+            <p style={{ marginTop: 8 }}>This authorization specifically includes commercial exploitation and distribution on any digital content platform, social networks, or adult platforms{platforms ? ` (including but not limited to ${platforms.join(", ")})` : ""} as well as any other digital or physical medium, present or future, without geographical or temporal restriction.</p>
             <p style={{ marginTop: 8, fontWeight: 600 }}>The Model certifies under penalty of perjury that:</p>
             <ul style={{ marginTop: 4, paddingLeft: 20, lineHeight: 1.7 }}>
               <li>They are at least 18 years of age at the date of the session and have full legal capacity.</li>
@@ -173,7 +177,7 @@ export default async function SignedPage({ params }: PageProps) {
         <div className="section">
           <div className="section-title">Consents</div>
           <div className="consent-item"><Check ok={consentRecording} /><span>I authorize the recording of my participation.</span></div>
-          <div className="consent-item"><Check ok={consentPub} /><span>I authorize the publication of content on the specified platforms (OnlyFans, Faphouse, Fansly, etc.).</span></div>
+          <div className="consent-item"><Check ok={consentPub} /><span>I authorize the publication of content on the specified platforms{platforms ? ` (${platforms.join(", ")}, etc.)` : ""}.</span></div>
           <div className="consent-item"><Check ok={consentAdult} /><span>I certify that I am of legal age (18+) and consent freely and without constraint.</span></div>
         </div>
 
@@ -206,7 +210,7 @@ export default async function SignedPage({ params }: PageProps) {
 
         <div className="footer">
           <span>Ref. participation: {participationId}</span>
-          <span>Document généré le {new Date().toLocaleDateString("fr-CA")}</span>
+          <span>Document generated on {new Date().toLocaleDateString(locale)}</span>
         </div>
       </div>
     </>

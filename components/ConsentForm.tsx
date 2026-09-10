@@ -56,6 +56,7 @@ interface ConsentFormProps {
   shootTitle?: string;
   shootDate?: string;
   shootCategory?: string;
+  platformExamples?: string[];
 }
 
 function getEighteenYearsAgo(): string {
@@ -64,7 +65,7 @@ function getEighteenYearsAgo(): string {
   return d.toISOString().split("T")[0];
 }
 
-export default function ConsentForm({ shootId, shootTitle, shootDate, shootCategory }: ConsentFormProps) {
+export default function ConsentForm({ shootId, shootTitle, shootDate, shootCategory, platformExamples }: ConsentFormProps) {
   const uid = useId();
 
   const [docType, setDocType] = useState("");
@@ -219,11 +220,11 @@ export default function ConsentForm({ shootId, shootTitle, shootDate, shootCateg
               </div>
 
               <div className="flex flex-col gap-1">
-                <Label htmlFor={`${uid}-mainurl`}>Main X / Twitter profile *</Label>
+                <Label htmlFor={`${uid}-mainurl`}>Main profile / website *</Label>
                 <Input
                   id={`${uid}-mainurl`}
                   type="url"
-                  placeholder="https://x.com/yourusername"
+                  placeholder="https://your-platform.example/yourusername"
                   value={form.mainUrl}
                   onChange={(e) => set("mainUrl", e.target.value)}
                   required
@@ -340,7 +341,7 @@ export default function ConsentForm({ shootId, shootTitle, shootDate, shootCateg
               <div className="h-32 overflow-y-scroll rounded-md border border-input bg-muted/30 px-3 py-2 text-xs text-muted-foreground leading-relaxed">
                 <p className="font-semibold mb-1">Image Rights Assignment Contract and Informed Consent</p>
                 <p>By signing this form, the undersigned (hereinafter "the Model") irrevocably authorizes the photographer/producer (hereinafter "the Producer") and their successors, assignees, and licensees to use, reproduce, modify, distribute, publish, and license the photographic and audiovisual works created during the session covered by this document.</p>
-                <p className="mt-2">This authorization specifically includes commercial exploitation and distribution on any digital content platform, social networks, or adult platforms (including but not limited to OnlyFans, Fansly, Faphouse) as well as any other digital or physical medium, present or future, without geographical or temporal restriction. The Model acknowledges that this assignment is granted definitively and does not entitle them to any subsequent compensation, royalties, or approval rights over the use of the material.</p>
+                <p className="mt-2">This authorization specifically includes commercial exploitation and distribution on any digital content platform, social networks, or adult platforms{platformExamples ? ` (including but not limited to ${platformExamples.join(", ")})` : ""} as well as any other digital or physical medium, present or future, without geographical or temporal restriction. The Model acknowledges that this assignment is granted definitively and does not entitle them to any subsequent compensation, royalties, or approval rights over the use of the material.</p>
                 <p className="mt-2 font-medium">The Model certifies under penalty of perjury that:</p>
                 <ul className="mt-1 list-disc pl-4 space-y-1">
                   <li>They are at least 18 years of age at the date of the session and have full legal capacity.</li>
@@ -372,7 +373,7 @@ export default function ConsentForm({ shootId, shootTitle, shootDate, shootCateg
                   },
                   {
                     key: "consentPublication",
-                    label: "I authorize the publication of content on the specified platforms (OnlyFans, Faphouse, Fansly, etc.).",
+                    label: `I authorize the publication of content on the specified platforms${platformExamples ? ` (${platformExamples.join(", ")}, etc.)` : ""}.`,
                   },
                   {
                     key: "consentAdult",

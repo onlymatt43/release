@@ -48,6 +48,13 @@ export function siteLocale(): string | null {
   return env('SITE_LOCALE');
 }
 
+// IANA time zone (e.g. America/Toronto) used to format dates shown on
+// consent documents. Null when unset, so formatting falls back to the
+// runtime's own time zone instead of assuming one.
+export function siteTimeZone(): string | null {
+  return env('SITE_TIMEZONE');
+}
+
 // og:locale (language_TERRITORY) derived from the BCP-47 site locale, or null
 // when the locale carries no region.
 export function siteOpenGraphLocale(): string | null {
@@ -99,6 +106,17 @@ export function consentWebhookBaseUrl(): string | null {
   } catch {
     return null;
   }
+}
+
+// Names of the content platforms mentioned in the consent form's legal text
+// and publication-consent checkbox (e.g. "OnlyFans, Fansly"). Null when
+// unset, in which case that text describes platforms generically instead of
+// naming any by name.
+export function sitePlatformExamples(): string[] | null {
+  const raw = env('SITE_PLATFORM_EXAMPLES');
+  if (!raw) return null;
+  const names = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  return names.length ? names : null;
 }
 
 // Metadata `icons` entry for the brand favicon set, or an empty object when the

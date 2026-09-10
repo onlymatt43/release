@@ -77,7 +77,7 @@ export default function NewShootForm() {
               <Label htmlFor="category">Category / Content type (optional)</Label>
               <Input id="category" value={form.category}
                 onChange={(e) => set("category", e.target.value)}
-                placeholder="e.g. OnlyFans, Promo, Adult…" />
+                placeholder="e.g. Premium, Promo, Adult…" />
             </div>
 
             <div className="flex flex-col gap-1">

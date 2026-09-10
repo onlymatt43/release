@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { getDb } from "@/lib/db";
+import { siteLocale } from "@/lib/site-config";
 import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -21,6 +22,7 @@ export default async function ContactsPage() {
   });
 
   const contacts = result.rows as unknown as Contact[];
+  const locale = siteLocale() ?? undefined;
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -56,7 +58,7 @@ export default async function ContactsPage() {
                   <TableHead>Legal name</TableHead>
                   <TableHead>Stage name</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>X profile</TableHead>
+                  <TableHead>Main profile</TableHead>
                   <TableHead>Shoots</TableHead>
                   <TableHead>Updated</TableHead>
                 </TableRow>
@@ -79,7 +81,7 @@ export default async function ContactsPage() {
                       <span className="text-sm font-medium">{c.participation_count ?? 0}</span>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {new Date(c.updated_at).toLocaleDateString("en-CA")}
+                      {new Date(c.updated_at).toLocaleDateString(locale)}
                     </TableCell>
                   </TableRow>
                 ))}

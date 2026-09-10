@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { getDb } from "@/lib/db";
-import { resolveBaseUrl } from "@/lib/site-config";
+import { resolveBaseUrl, siteLocale } from "@/lib/site-config";
 import { Button } from "@/components/ui/button";
 import ShootCard from "@/components/admin/ShootCard";
 import LogoutButton from "@/components/admin/LogoutButton";
@@ -52,7 +52,7 @@ export default async function AdminPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {shoots.map((shoot) => (
-              <ShootCard key={shoot.id} shoot={shoot} baseUrl={baseUrl} />
+              <ShootCard key={shoot.id} shoot={shoot} baseUrl={baseUrl} locale={siteLocale() ?? undefined} />
             ))}
           </div>
         )}

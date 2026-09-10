@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS shoots (
   shoot_date   TEXT NOT NULL,            -- ISO-8601 : YYYY-MM-DD
   photographer TEXT NOT NULL,
   location     TEXT,
-  category     TEXT,                     -- étiquette admin (ex: OnlyFans, Promo…)
+  category     TEXT,                     -- étiquette admin (ex: Premium, Promo…)
   notes        TEXT,
   created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );

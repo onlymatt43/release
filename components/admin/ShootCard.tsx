@@ -18,9 +18,10 @@ import type { Shoot } from "@/lib/types";
 interface ShootCardProps {
   shoot: Shoot;
   baseUrl: string;
+  locale?: string;
 }
 
-export default function ShootCard({ shoot, baseUrl }: ShootCardProps) {
+export default function ShootCard({ shoot, baseUrl, locale }: ShootCardProps) {
   const consentUrl = `${baseUrl}/consent/${shoot.id}`;
   const [copied, setCopied] = useState(false);
 
@@ -40,7 +41,7 @@ export default function ShootCard({ shoot, baseUrl }: ShootCardProps) {
           </Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          {new Date(shoot.shoot_date).toLocaleDateString("fr-CA")} · {shoot.photographer}
+          {new Date(shoot.shoot_date).toLocaleDateString(locale)} · {shoot.photographer}
           {shoot.location ? ` · ${shoot.location}` : ""}
         </p>
       </CardHeader>

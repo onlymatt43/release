@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { sitePlatformExamples } from "@/lib/site-config";
 import ConsentForm from "@/components/ConsentForm";
 
 export const dynamic = "force-dynamic";
@@ -33,5 +34,13 @@ export default async function ConsentPage({ params }: PageProps) {
     shootTitle = `@${shootId}`;
   }
 
-  return <ConsentForm shootId={shootId} shootTitle={shootTitle} shootDate={shootDate} shootCategory={shootCategory} />;
+  return (
+    <ConsentForm
+      shootId={shootId}
+      shootTitle={shootTitle}
+      shootDate={shootDate}
+      shootCategory={shootCategory}
+      platformExamples={sitePlatformExamples() ?? undefined}
+    />
+  );
 }
