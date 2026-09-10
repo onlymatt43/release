@@ -11,7 +11,7 @@ export async function requireSession(): Promise<Identity | NextResponse> {
 }
 
 export function clientInfo(req: NextRequest): { ipAddress: string | null; userAgent: string | null } {
-  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0].trim();
+  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || null;
   return {
     ipAddress: forwarded || req.headers.get("x-real-ip") || null,
     userAgent: req.headers.get("user-agent") ?? null,
